@@ -28,6 +28,21 @@ document.addEventListener('keydown', (e) => {
             // "Labs" -> Alt+A or Alt+B as Alt+L is used for Library
             selector = '[aria-label="Labs"]';
             break;
+        case 'KeyC':
+            selector = '[data-testid="composer-create-button"]';
+            break;
+        case 'KeyM':
+            selector = '[data-testid="composer-chat-mode-smart-button"]';
+            break;
+        case 'KeyV':
+            selector = '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]';
+            break;
+        case 'KeyX':
+            selector = '[title="Invite"]';
+            break;
+        case 'KeyF':
+            selector = '#userInput';
+            break;
         default:
             return;
     }
