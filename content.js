@@ -1,4 +1,4 @@
-console.log('%c[Copilot Shortcuts] Extension Loaded - Waiting for Alt+Key combo', 'color: #0078D4; font-weight: bold; font-size: 14px;');
+console.log('%c[Copilot Shortcuts] Extension Loaded - Waiting for Ctrl+Key combo', 'color: #0078D4; font-weight: bold; font-size: 14px;');
 
 // Helper to simulate a trusted click for React/SPA elements
 function simulateClick(el) {
@@ -15,13 +15,13 @@ function simulateClick(el) {
 }
 
 document.addEventListener('keydown', (e) => {
-    // Debug logging for any Alt keydown
-    if (e.altKey) {
-        console.log(`[Copilot Shortcuts Debug] Alt pressed + ${e.code} (e.key: ${e.key})`, e);
+    // Debug logging for any Ctrl keydown
+    if (e.ctrlKey) {
+        console.log(`[Copilot Shortcuts Debug] Ctrl pressed + ${e.code} (e.key: ${e.key})`, e);
     }
 
-    // Intercept when Alt (Option on Mac) is the only modifier pressed.
-    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    // Intercept when Ctrl is the only modifier pressed.
+    if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
 
     let selector = null;
 
@@ -46,7 +46,7 @@ document.addEventListener('keydown', (e) => {
             break;
         case 'KeyA':
         case 'KeyB':
-            // "Labs" -> Alt+A or Alt+B as Alt+L is used for Library
+            // "Labs" -> Ctrl+A or Ctrl+B as Ctrl+L is used for Library
             selector = '[aria-label="Labs"]';
             break;
         case 'KeyC':
