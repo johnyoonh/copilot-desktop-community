@@ -1,4 +1,25 @@
+console.log('%c[Copilot Shortcuts] Extension Loaded - Waiting for Alt+Key combo', 'color: #0078D4; font-weight: bold; font-size: 14px;');
+
+// Helper to simulate a trusted click for React/SPA elements
+function simulateClick(el) {
+    const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+    events.forEach(type => {
+        const event = new MouseEvent(type, {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            buttons: 1
+        });
+        el.dispatchEvent(event);
+    });
+}
+
 document.addEventListener('keydown', (e) => {
+    // Debug logging for any Alt keydown
+    if (e.altKey) {
+        console.log(`[Copilot Shortcuts Debug] Alt pressed + ${e.code} (e.key: ${e.key})`, e);
+    }
+
     // Intercept when Alt (Option on Mac) is the only modifier pressed.
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
 
@@ -44,15 +65,25 @@ document.addEventListener('keydown', (e) => {
             selector = '#userInput';
             break;
         default:
-            return;
+            return; // Not a mapped shortcut
     }
 
     if (selector) {
+        console.log(`[Copilot Shortcuts Debug] Match found for ${e.code}. Active selector: ${selector}`);
         const el = document.querySelector(selector);
+        
         if (el) {
+            console.log(`[Copilot Shortcuts Debug] Triggering element:`, el);
             e.preventDefault();
             e.stopPropagation();
-            el.click();
+
+            if (selector === '#userInput') {
+                el.focus();
+            } else {
+                simulateClick(el);
+            }
+        } else {
+            console.warn(`[Copilot Shortcuts Debug] Element NOT found for selector: ${selector}`);
         }
     }
 }, true); // Use capture phase to intercept before other handlers
