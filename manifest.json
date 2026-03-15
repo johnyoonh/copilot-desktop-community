@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Copilot Keyboard Shortcuts",
+  "version": "1.0",
+  "description": "Keyboard shortcuts to navigate Microsoft Copilot sidebar using Alt/Option combinations.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://copilot.microsoft.com/*",
+        "https://www.bing.com/chat*"
+      ],
+      "js": ["content.js"]
+    }
+  ]
+}
