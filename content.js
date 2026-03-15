@@ -15,10 +15,8 @@ function simulateClick(el) {
 }
 
 document.addEventListener('keydown', (e) => {
-    // Debug logging for any Ctrl keydown
-    if (e.ctrlKey) {
-        console.log(`[Copilot Shortcuts Debug] Ctrl pressed + ${e.code} (e.key: ${e.key})`, e);
-    }
+    // Debug logging for every keydown
+    console.log(`[Copilot Shortcuts Debug] Key pressed: ${e.code} (e.key: ${e.key}, ctrl: ${e.ctrlKey}, alt: ${e.altKey})`, e);
 
     // Intercept when Ctrl is the only modifier pressed.
     if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
