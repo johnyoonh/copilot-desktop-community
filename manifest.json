@@ -2,18 +2,13 @@
   "manifest_version": 3,
   "name": "Copilot Keyboard Shortcuts",
   "version": "1.0",
-  "description": "Keyboard shortcuts to navigate Microsoft Copilot sidebar using Ctrl combinations.",
+  "description": "Custom Alt+Key shortcuts for Microsoft Copilot.",
   "content_scripts": [
     {
-      "matches": [
-        "https://copilot.microsoft.com/*",
-        "https://www.bing.com/chat*",
-        "file:///*",
-        "http://localhost/*",
-        "http://127.0.0.1/*"
-      ],
-      "all_frames": true,
-      "js": ["content.js"]
+      "matches": ["https://copilot.microsoft.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
     }
-  ]
+  ],
+  "host_permissions": ["https://copilot.microsoft.com/*"]
 }

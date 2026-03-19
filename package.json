@@ -1,0 +1,29 @@
+{
+  "name": "copilot-desktop-community",
+  "productName": "Copilot Desktop (Community Edition)",
+  "version": "1.0.0",
+  "description": "Copilot Desktop App with Custom Shortcuts",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^34.3.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.user.copilot-desktop",
+    "mac": {
+      "icon": "icon.png",
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "icon": "icon.png"
+    }
+  }
+}
