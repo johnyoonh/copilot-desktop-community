@@ -2,7 +2,7 @@
   "name": "copilot-desktop-community",
   "productName": "Copilot Desktop (Community Edition)",
   "version": "1.0.0",
-  "description": "Copilot Desktop App with Custom Shortcuts",
+  "description": "A standalone, community-driven desktop client for Microsoft Copilot, designed for a more integrated and flexible user experience.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

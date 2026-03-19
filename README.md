@@ -1,6 +1,10 @@
 # Copilot Desktop (Community Edition)
 
-A lightweight, high-performance desktop wrapper for Microsoft Copilot with advanced keyboard shortcuts and browser-style features.
+A lightweight, high-performance desktop wrapper for Microsoft Copilot with advanced productivity features and browser-style navigation.
+
+## 🌟 Why this exists
+
+This project was created as a standalone desktop application to provide a more robust and seamless experience for Microsoft Copilot. Standard browser environments often have security restrictions that can limit the flexibility of custom integrations—particularly regarding deep keyboard control and cross-origin interactions. By moving to a dedicated environment, we can offer a more native-feeling workspace that avoids some of these common extension-based limitations.
 
 ## 🚀 Features
 
