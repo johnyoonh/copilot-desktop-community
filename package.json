@@ -1,12 +1,12 @@
 {
   "name": "copilot-desktop-community",
-  "productName": "Copilot Desktop (Community Edition)",
+  "productName": "Copilot Desktop CE",
   "version": "1.0.0",
   "description": "A standalone, community-driven desktop client for Microsoft Copilot, designed for a more integrated and flexible user experience.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "build": "set -a; source .env; set +a; electron-builder",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -21,6 +21,12 @@
     "mac": {
       "icon": "icon.png",
       "category": "public.app-category.productivity"
+    },
+    "protocols": {
+      "name": "Copilot Protocol",
+      "schemes": [
+        "copilot"
+      ]
     },
     "win": {
       "icon": "icon.png"

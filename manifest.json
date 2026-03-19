@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Copilot Desktop Community",
+  "name": "Copilot Desktop CE",
   "version": "1.0",
   "description": "Enhanced interface logic for the Copilot Desktop Community application.",
   "content_scripts": [

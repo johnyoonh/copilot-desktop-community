@@ -29,3 +29,5 @@ builder-effective-config.yaml
 *.tmp
 *.bak
 test-find.js
+.env
+GEMINI.md

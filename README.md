@@ -1,4 +1,4 @@
-# Copilot Desktop (Community Edition)
+# Copilot Desktop CE
 
 A lightweight, high-performance desktop wrapper for Microsoft Copilot with advanced productivity features and browser-style navigation.
 
@@ -8,6 +8,13 @@ This project was created as a standalone desktop application to provide a more r
 
 ## 🚀 Features
 
+- **Library:** Quick access to your full chat history and saved items.
+- **Tasks PREVIEW:** Integrated task management for tracking your to-dos directly within Copilot.
+- **Discover:** Stay updated with the latest trends and trending searches.
+- **Shopping:** Get smart recommendations and price comparisons while you browse.
+- **Imagine:** A dedicated space for creating AI-generated images with ease.
+- **Labs:** Access to cutting-edge experimental features before they roll out to everyone.
+- **Standard Shortcuts:** Full support for `Cmd+A` (Select All), `Cmd+C` (Copy), and `Cmd+V` (Paste).
 - **Global Keyboard Shortcuts:** Access search, settings, and new chats instantly.
 - **Browser-style Search (Cmd+F):** Real-time text search with match highlighting and a result counter.
 - **Navigation (Cmd+[ / Cmd+]):** Familiar back/forward history navigation.
@@ -19,12 +26,27 @@ This project was created as a standalone desktop application to provide a more r
 | Shortcut | Action |
 | :--- | :--- |
 | `Cmd/Ctrl + Shift + O` | **New Chat** (Alternative: `Cmd+N`) |
+| `Cmd/Ctrl + U` | **Voice / Talk** (Deep integration, avoids `Cmd+V` conflict) |
 | `Cmd/Ctrl + K` or `/` | **Focus Search / Chat Input** |
+| `Cmd/Ctrl + L` | **Library** |
+| `Cmd/Ctrl + T` | **Tasks PREVIEW** |
+| `Cmd/Ctrl + D` | **Discover** |
+| `Cmd/Ctrl + S` | **Shopping** |
+| `Cmd/Ctrl + I` | **Imagine** |
+| `Cmd/Ctrl + B` | **Labs** |
 | `Cmd/Ctrl + F` | **Find in Page** (Browser-style search bar) |
 | `Cmd/Ctrl + ,` | **Settings** |
 | `Cmd/Ctrl + .` | **Toggle Sidebar** |
 | `Cmd/Ctrl + [` | **Go Back** in history |
 | `Cmd/Ctrl + ]` | **Go Forward** in history |
+
+## 🔗 Deep Linking (URL Scheme)
+
+You can trigger Copilot from other apps (like Apple Reminders, Shortcuts, or Raycast) using the `copilot://` URL scheme.
+
+**Example Usage:**
+- `copilot://chat?q=What is the weather?`
+- `copilot://sydney?q=Summarize my day` (Mobile-compatible format)
 
 ## 🛠️ Installation
 

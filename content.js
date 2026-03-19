@@ -36,9 +36,7 @@ const SHORTCUTS = {
   KeyD: { selector: '[aria-label="Discover"], [data-testid="sidebar-discover-button"]' },
   KeyS: { selector: '[aria-label="Shopping"], [data-testid="sidebar-shopping-button"]' },
   KeyI: { selector: '[aria-label="Imagine"]' },
-  KeyA: { selector: '[aria-label="Labs"]' },
-  KeyB: { selector: '[aria-label="Labs"]' },
-  KeyC: { selector: '[data-testid="composer-create-button"]' },
+  KeyB: { selector: '[aria-label="Labs"]' }, // Labs moved to B to free up A for Select All
   KeyM: { selector: '[data-testid="composer-chat-mode-smart-button"]' },
   KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
@@ -60,6 +58,9 @@ const handler = (e) => {
   const typing = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
   if (typing && !mapping.isInput && code !== 'KeyO' && code !== 'KeyN') return;
 
+  // Let standard browser shortcuts (Select All, Copy, Paste) pass through
+  if (code === 'KeyA' || code === 'KeyC' || code === 'KeyV') return;
+
   e.preventDefault();
   e.stopPropagation();
 
@@ -69,7 +70,7 @@ const handler = (e) => {
 
 document.addEventListener("keydown", handler, true);
 
-// Iframe injection handled by main process executeJavaScriptInFrame
+// Iframe injection handled by main process
 window.addEventListener('copilot-shortcut', (e) => {
   const mapping = SHORTCUTS[e.detail.code];
   if (mapping) {
