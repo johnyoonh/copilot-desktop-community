@@ -14,7 +14,7 @@ This project was created as a standalone desktop application to provide a more r
 - **Shopping:** Get smart recommendations and price comparisons while you browse.
 - **Imagine:** A dedicated space for creating AI-generated images with ease.
 - **Labs:** Access to cutting-edge experimental features before they roll out to everyone.
-- **Standard Shortcuts:** Full support for `Cmd+A` (Select All), `Cmd+C` (Copy), and `Cmd+V` (Paste).
+- **Standard Shortcuts:** Full support for `Cmd+A` (Select All), `Cmd+C` (Copy), `Cmd+X` (Cut), and `Cmd+V` (Paste).
 - **Global Keyboard Shortcuts:** Access search, settings, and new chats instantly.
 - **Browser-style Search (Cmd+F):** Real-time text search with match highlighting and a result counter.
 - **Navigation (Cmd+[ / Cmd+]):** Familiar back/forward history navigation.

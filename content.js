@@ -58,8 +58,8 @@ const handler = (e) => {
   const typing = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
   if (typing && !mapping.isInput && code !== 'KeyO' && code !== 'KeyN') return;
 
-  // Let standard browser shortcuts (Select All, Copy, Paste) pass through
-  if (code === 'KeyA' || code === 'KeyC' || code === 'KeyV') return;
+  // Let standard browser shortcuts (Select All, Copy, Paste, Cut) pass through
+  if (code === 'KeyA' || code === 'KeyC' || code === 'KeyV' || code === 'KeyX') return;
 
   e.preventDefault();
   e.stopPropagation();
