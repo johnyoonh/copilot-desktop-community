@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -58,6 +58,63 @@ function createWindow() {
   });
 
   win.loadURL('https://copilot.microsoft.com');
+
+  // Open external links (target="_blank") in default browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.hostname.includes('copilot.microsoft.com') && !parsedUrl.hostname.includes('login.live.com')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
+  // Intercept standard navigation to open external links in default browser
+  win.webContents.on('will-navigate', (event, url) => {
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.hostname.includes('copilot.microsoft.com') && 
+        !parsedUrl.hostname.includes('bing.com') && 
+        !parsedUrl.hostname.includes('microsoft.com') && 
+        !parsedUrl.hostname.includes('live.com')) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  // Right-click context menu
+  win.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add basic edit actions
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: 'cut' }));
+      menu.append(new MenuItem({ role: 'copy' }));
+      menu.append(new MenuItem({ role: 'paste' }));
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ role: 'copy' }));
+    }
+
+    // Add link options
+    if (params.linkURL) {
+      menu.append(new MenuItem({
+        label: 'Open Link in Default Browser',
+        click: () => shell.openExternal(params.linkURL)
+      }));
+      menu.append(new MenuItem({
+        label: 'Copy Link Address',
+        role: 'copyLink',
+      }));
+    }
+
+    // Add inspect element for debugging
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({
+      label: 'Inspect Element',
+      click: () => win.webContents.inspectElement(params.x, params.y)
+    }));
+
+    menu.popup(win);
+  });
 
   // Inject into every frame as it finishes loading
   win.webContents.on('did-frame-finish-load', (event, isMainFrame, frameProcessId, frameRoutingId) => {
