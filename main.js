@@ -101,6 +101,21 @@ function createWindow() {
         click: () => shell.openExternal(params.linkURL)
       }));
       menu.append(new MenuItem({
+        label: 'Open Link in Preview Window',
+        click: () => {
+          const previewWin = new BrowserWindow({
+            width: 1000,
+            height: 800,
+            title: 'Preview',
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true
+            }
+          });
+          previewWin.loadURL(params.linkURL);
+        }
+      }));
+      menu.append(new MenuItem({
         label: 'Copy Link Address',
         role: 'copyLink',
       }));
@@ -137,34 +152,36 @@ function createWindow() {
       if (key === 'Period') accelerator = 'CommandOrControl+.';
 
       globalShortcut.register(accelerator, () => {
-        win.webContents.send('trigger-shortcut', key === 'Comma' ? 'Comma' : (key === 'Period' ? 'Period' : `Key${key}`) );
+        if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
+          win.webContents.send('trigger-shortcut', key === 'Comma' ? 'Comma' : (key === 'Period' ? 'Period' : `Key${key}`) );
+        }
       });
     });
 
     // Voice Shortcut (moved to U to avoid Cmd+V Paste conflict)
     globalShortcut.register('CommandOrControl+U', () => {
-      win.webContents.send('trigger-shortcut', 'KeyV');
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyV');
     });
 
     // Native Focus Search (/)
     globalShortcut.register('/', () => {
-      win.webContents.send('trigger-shortcut', 'Slash');
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'Slash');
     });
 
     globalShortcut.register('CommandOrControl+F', () => {
-      win.webContents.send('show-find-bar');
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-find-bar');
     });
 
     globalShortcut.register('CommandOrControl+Shift+O', () => {
-      win.webContents.send('trigger-shortcut', 'KeyO');
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyO');
     });
 
     globalShortcut.register('CommandOrControl+[', () => {
-      if (win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack();
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed() && win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack();
     });
 
     globalShortcut.register('CommandOrControl+]', () => {
-      if (win.webContents.navigationHistory.canGoForward()) win.webContents.navigationHistory.goForward();
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed() && win.webContents.navigationHistory.canGoForward()) win.webContents.navigationHistory.goForward();
     });
   });
 
