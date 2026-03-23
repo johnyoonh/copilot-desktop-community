@@ -37,7 +37,7 @@ const SHORTCUTS = {
   KeyS: { selector: '[aria-label="Shopping"], [data-testid="sidebar-shopping-button"]' },
   KeyI: { selector: '[aria-label="Imagine"]' },
   KeyB: { selector: '[aria-label="Labs"]' }, // Labs moved to B to free up A for Select All
-  KeyM: { selector: '[data-testid="composer-chat-mode-smart-button"]' },
+  KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
   KeyK: { selector: '[aria-label="Search"], [data-testid="search-button"]', isInput: true },
