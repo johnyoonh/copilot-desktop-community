@@ -46,7 +46,25 @@ const SHORTCUTS = {
   Slash: { selector: '[aria-label="Search"], [data-testid="search-button"]', isInput: true },
 };
 
+let lastEnterTime = 0;
 const handler = (e) => {
+  // Prevent double submissions in Copilot prompt (race condition block)
+  if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    const ae = document.activeElement;
+    const tag = (ae?.tagName || "").toLowerCase();
+    const isTextInput = tag === "textarea" || tag === "input" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
+    
+    if (isTextInput) {
+      const now = Date.now();
+      if (now - lastEnterTime < 400) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      lastEnterTime = now;
+    }
+  }
+
   if (!(e.metaKey || e.ctrlKey) && e.key !== '/') return;
   if (e.shiftKey && e.code !== 'KeyO') return;
   const code = (e.key === '/' && !e.metaKey && !e.ctrlKey) ? 'Slash' : e.code;
