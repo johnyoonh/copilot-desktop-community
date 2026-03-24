@@ -158,14 +158,18 @@ window.addEventListener('copilot-shortcut', (e) => {
         window.electronSearch?.stop();
     }
 
+    let searchTimeout = null;
     findInput.addEventListener('input', () => {
-      const text = findInput.value;
-      if (text) {
-        window.electronSearch?.find(text, true, false);
-      } else {
-        findResultsCount.textContent = '0/0';
-        window.electronSearch?.stop();
-      }
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        const text = findInput.value;
+        if (text) {
+          window.electronSearch?.find(text, true, false);
+        } else {
+          findResultsCount.textContent = '0/0';
+          window.electronSearch?.stop();
+        }
+      }, 500);
     });
 
     nextBtn.onclick = () => window.electronSearch?.find(findInput.value, true, true);
