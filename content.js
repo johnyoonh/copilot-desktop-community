@@ -40,6 +40,7 @@ const SHORTCUTS = {
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
+  KeyK: { selector: '[aria-label="Search"], [data-testid="search-button"]', isInput: true },
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
   Period: { selector: '[aria-label="Close sidebar"], [aria-label="Open sidebar"], [aria-label="Open sidebar!"]' }
 };
@@ -63,7 +64,19 @@ const handler = (e) => {
     }
   }
 
-  if (!(e.metaKey || e.ctrlKey) && e.key !== '/') return;
+  if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+    const ae = document.activeElement;
+    const tag = (ae?.tagName || "").toLowerCase();
+    const isTyping = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
+    if (isTyping) {
+      e.stopPropagation(); // Stop Copilot from intercepting '/' natively
+      return; // Let the browser naturally insert the '/'
+    }
+    // If not typing, don't intercept it here; Copilot will handle it naturally to open search chats.
+    return;
+  }
+
+  if (!(e.metaKey || e.ctrlKey)) return;
   if (e.shiftKey && e.code !== 'KeyO') return;
   const code = e.code;
   const mapping = SHORTCUTS[code];

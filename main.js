@@ -145,7 +145,7 @@ function createWindow() {
   // Handle Global Shortcuts
   win.on('focus', () => {
     // Removed 'A', 'C', 'V', 'X' to prevent conflicts with Select All, Copy, Paste, and Cut
-    const shortcuts = ['N', 'L', 'T', 'D', 'S', 'I', 'B', 'M', 'Comma', 'Period'];
+    const shortcuts = ['N', 'L', 'T', 'D', 'S', 'I', 'B', 'M', 'K', 'Comma', 'Period'];
     shortcuts.forEach(key => {
       let accelerator = `CommandOrControl+${key}`;
       if (key === 'Comma') accelerator = 'CommandOrControl+,';
@@ -163,10 +163,7 @@ function createWindow() {
       if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyV');
     });
 
-    // Native Focus Search Find Bar (Cmd+K)
-    globalShortcut.register('CommandOrControl+K', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-find-bar');
-    });
+
 
     globalShortcut.register('CommandOrControl+F', () => {
       if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-find-bar');
