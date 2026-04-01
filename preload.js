@@ -9,6 +9,10 @@ ipcRenderer.on('show-find-bar', () => {
   window.dispatchEvent(new CustomEvent('show-find-bar'));
 });
 
+ipcRenderer.on('show-shortcuts-modal', () => {
+  window.dispatchEvent(new CustomEvent('show-shortcuts-modal'));
+});
+
 ipcRenderer.on('find-results', (event, data) => {
   window.dispatchEvent(new CustomEvent('find-results', { detail: data }));
 });

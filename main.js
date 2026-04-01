@@ -163,8 +163,10 @@ function createWindow() {
       if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyV');
     });
 
-
-
+    globalShortcut.register('CommandOrControl+/', () => {
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-shortcuts-modal');
+    });
+    
     globalShortcut.register('CommandOrControl+F', () => {
       if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-find-bar');
     });

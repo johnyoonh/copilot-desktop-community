@@ -214,3 +214,167 @@ window.addEventListener('copilot-shortcut', (e) => {
     }
   });
 })();
+
+// =============================================================
+//  Keyboard Shortcuts Modal overlay
+// =============================================================
+
+(function initShortcutsModal() {
+  if (window.self !== window.top) return;
+  
+  let modal = null;
+
+  function createModal() {
+    if (modal) return;
+    
+    modal = document.createElement('div');
+    modal.id = 'copilot-shortcuts-modal';
+    
+    // Glassmorphism overlay
+    modal.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 2147483647;
+      display: none; justify-content: center; align-items: center;
+      opacity: 0; transition: opacity 0.3s ease;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    `;
+    
+    const container = document.createElement('div');
+    container.style.cssText = `
+      background: rgba(20, 20, 20, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      width: 500px; max-width: 90vw;
+      padding: 32px;
+      color: #fff;
+      transform: scale(0.95) translateY(10px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex; flex-direction: column; gap: 20px;
+    `;
+    
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 16px;';
+    
+    const title = document.createElement('h2');
+    title.textContent = 'Keyboard Shortcuts';
+    title.style.cssText = 'margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.5px; background: linear-gradient(135deg, #fff, #aaa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'background: rgba(255,255,255,0.1); border: none; cursor: pointer; color: #fff; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: background 0.2s;';
+    closeBtn.onmouseover = () => closeBtn.style.background = 'rgba(255,255,255,0.2)';
+    closeBtn.onmouseout = () => closeBtn.style.background = 'rgba(255,255,255,0.1)';
+    closeBtn.onclick = hideModal;
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    container.appendChild(header);
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 12px; max-height: 60vh; overflow-y: auto; padding-right: 8px;';
+
+    const shortcutsList = [
+      { key: 'Cmd + N', desc: 'New Chat' },
+      { key: 'Cmd + Shift + O', desc: 'New Chat' },
+      { key: 'Cmd + L', desc: 'Library' },
+      { key: 'Cmd + T', desc: 'Tasks' },
+      { key: 'Cmd + D', desc: 'Discover' },
+      { key: 'Cmd + S', desc: 'Shopping' },
+      { key: 'Cmd + I', desc: 'Imagine' },
+      { key: 'Cmd + B', desc: 'Labs' },
+      { key: 'Cmd + M', desc: 'Switch Chat Mode' },
+      { key: 'Cmd + V', desc: 'Voice / Talk' },
+      { key: 'Cmd + X', desc: 'Invite' },
+      { key: 'Cmd + K', desc: 'Search Chats' },
+      { key: 'Cmd + ,', desc: 'Settings' },
+      { key: 'Cmd + .', desc: 'Toggle Sidebar' },
+      { key: 'Cmd + F', desc: 'Find in Page' },
+      { key: 'Cmd + [ / ]', desc: 'History Back / Forward' },
+      { key: 'Cmd + /', desc: 'Show this Modal' },
+    ];
+
+    shortcutsList.forEach(item => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255, 255, 255, 0.03); border-radius: 12px; transition: background 0.2s;';
+      row.onmouseover = () => row.style.background = 'rgba(255, 255, 255, 0.07)';
+      row.onmouseout = () => row.style.background = 'rgba(255, 255, 255, 0.03)';
+      
+      const desc = document.createElement('span');
+      desc.textContent = item.desc;
+      desc.style.cssText = 'font-size: 15px; font-weight: 500; color: rgba(255, 255, 255, 0.9);';
+      
+      const keys = document.createElement('div');
+      keys.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+      
+      const keyParts = item.key.split(' ').filter(p => !!p);
+      keyParts.forEach(part => {
+        if (part !== '+') {
+          const keyBadge = document.createElement('kbd');
+          keyBadge.textContent = part.replace('Cmd', '⌘').replace('Shift', '⇧');
+          keyBadge.style.cssText = `
+            background: rgba(255, 255, 255, 0.1); 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            border-radius: 6px; padding: 4px 8px; 
+            font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+            color: #ddd;
+          `;
+          keys.appendChild(keyBadge);
+        } else if (part === '+') {
+          const plus = document.createElement('span');
+          plus.textContent = '+';
+          plus.style.cssText = 'color: #888; font-size: 12px; font-weight: bold; padding: 0 2px;';
+          keys.appendChild(plus);
+        }
+      });
+      
+      row.appendChild(desc);
+      row.appendChild(keys);
+      list.appendChild(row);
+    });
+
+    const style = document.createElement('style');
+    style.textContent = `
+      #copilot-shortcuts-modal *::-webkit-scrollbar { width: 6px; }
+      #copilot-shortcuts-modal *::-webkit-scrollbar-track { background: transparent; }
+      #copilot-shortcuts-modal *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+      #copilot-shortcuts-modal *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+    `;
+    modal.appendChild(style);
+
+    container.appendChild(list);
+    modal.appendChild(container);
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) hideModal();
+    });
+  }
+
+  function showModal() {
+    createModal();
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+      modal.style.opacity = '1';
+      modal.children[1].style.transform = 'scale(1) translateY(0)';
+    });
+  }
+
+  function hideModal() {
+    if (!modal) return;
+    modal.style.opacity = '0';
+    modal.children[1].style.transform = 'scale(0.95) translateY(10px)';
+    setTimeout(() => {
+      if (modal.style.opacity === '0') modal.style.display = 'none';
+    }, 300);
+  }
+
+  window.addEventListener('show-shortcuts-modal', () => {
+    if (modal && modal.style.display === 'flex') hideModal();
+    else showModal();
+  });
+})();
