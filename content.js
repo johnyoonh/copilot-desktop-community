@@ -38,6 +38,7 @@ const SHORTCUTS = {
   KeyI: { selector: '[aria-label="Imagine"]' },
   KeyB: { selector: '[aria-label="Labs"]' }, // Labs moved to B to free up A for Select All
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
+  KeyE: { selector: '[data-testid="composer-create-button"]', isInput: true },
   KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
   KeyK: { selector: '[aria-label="Search chats"], [aria-label="Search"], [data-testid="search-button"]', isInput: true },
@@ -72,8 +73,37 @@ const handler = (e) => {
       e.stopPropagation(); // Stop Copilot from intercepting '/' natively
       return; // Let the browser naturally insert the '/'
     }
-    // If not typing, don't intercept it here; Copilot will handle it naturally to open search chats.
+    // NOT typing: focus the prompt box
+    e.preventDefault();
+    e.stopPropagation();
+    const promptInput = document.querySelector('textarea, [id*="userInput"], [placeholder*="Ask"], [aria-label*="Ask"]');
+    if (promptInput) promptInput.focus();
     return;
+  }
+
+  // Handle number keys to click on opened popup menu items
+  if (e.key >= '1' && e.key <= '9' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    const ae = document.activeElement;
+    const tag = (ae?.tagName || "").toLowerCase();
+    const isTyping = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
+    
+    if (!isTyping) {
+       // Find all visible menu items
+       const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]')).filter(el => {
+           const rect = el.getBoundingClientRect();
+           return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+       });
+       
+       if (items.length > 0) {
+           const num = parseInt(e.key, 10);
+           if (num > 0 && num <= items.length) {
+               e.preventDefault();
+               e.stopPropagation();
+               items[num - 1].click();
+               return;
+           }
+       }
+    }
   }
 
   if (!(e.metaKey || e.ctrlKey)) return;
@@ -289,12 +319,15 @@ window.addEventListener('copilot-shortcut', (e) => {
       { key: 'Cmd + M', desc: 'Switch Chat Mode' },
       { key: 'Cmd + V', desc: 'Voice / Talk' },
       { key: 'Cmd + X', desc: 'Invite' },
+      { key: 'Cmd + E', desc: 'Attach / Create' },
       { key: 'Cmd + K', desc: 'Search Chats' },
       { key: 'Cmd + ,', desc: 'Settings' },
       { key: 'Cmd + .', desc: 'Toggle Sidebar' },
       { key: 'Cmd + F', desc: 'Find in Page' },
       { key: 'Cmd + [ / ]', desc: 'History Back / Forward' },
+      { key: '1 - 9', desc: 'Select Open Menu Item' },
       { key: 'Cmd + /', desc: 'Show this Modal' },
+      { key: '/', desc: 'Focus Chat Input' },
     ];
 
     shortcutsList.forEach(item => {
