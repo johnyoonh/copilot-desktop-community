@@ -174,7 +174,7 @@ window.addEventListener('copilot-shortcut', (e) => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
         const text = findInput.value;
-        if (text) {
+        if (text.length >= 2) {
           window.electronSearch?.find(text, true, false);
         } else {
           findResultsCount.textContent = '0/0';
@@ -183,12 +183,12 @@ window.addEventListener('copilot-shortcut', (e) => {
       }, 500);
     });
 
-    nextBtn.onclick = () => window.electronSearch?.find(findInput.value, true, true);
-    prevBtn.onclick = () => window.electronSearch?.find(findInput.value, false, true);
+    nextBtn.onclick = () => { if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, true, true); };
+    prevBtn.onclick = () => { if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, false, true); };
 
     findInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        window.electronSearch?.find(findInput.value, !e.shiftKey, true);
+        if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, !e.shiftKey, true);
       } else if (e.key === 'Escape') {
         hideFindBar();
       }
@@ -207,6 +207,10 @@ window.addEventListener('copilot-shortcut', (e) => {
   window.addEventListener('find-results', (e) => {
     if (findResultsCount) {
         findResultsCount.textContent = `${e.detail.activeMatchOrdinal}/${e.detail.matches}`;
+    }
+    // ensure search bar retains focus so user can keep typing
+    if (findInput && findBar?.style?.display === 'flex' && document.activeElement !== findInput) {
+        findInput.focus();
     }
   });
 })();
