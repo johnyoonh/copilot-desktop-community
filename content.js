@@ -40,10 +40,8 @@ const SHORTCUTS = {
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
-  KeyK: { selector: '[aria-label="Search"], [data-testid="search-button"]', isInput: true },
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
-  Period: { selector: '[aria-label="Close sidebar"], [aria-label="Open sidebar"], [aria-label="Open sidebar!"]' },
-  Slash: { selector: '[aria-label="Search"], [data-testid="search-button"]', isInput: true },
+  Period: { selector: '[aria-label="Close sidebar"], [aria-label="Open sidebar"], [aria-label="Open sidebar!"]' }
 };
 
 let lastEnterTime = 0;
@@ -67,7 +65,7 @@ const handler = (e) => {
 
   if (!(e.metaKey || e.ctrlKey) && e.key !== '/') return;
   if (e.shiftKey && e.code !== 'KeyO') return;
-  const code = (e.key === '/' && !e.metaKey && !e.ctrlKey) ? 'Slash' : e.code;
+  const code = e.code;
   const mapping = SHORTCUTS[code];
   if (!mapping) return;
 
