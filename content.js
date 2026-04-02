@@ -47,7 +47,102 @@ const SHORTCUTS = {
 };
 
 let lastEnterTime = 0;
+let cmdPressTimeout = null;
+let isCmdPressed = false;
+let hintsShowing = false;
+
+function showCmdHints() {
+   if (hintsShowing) return;
+   hintsShowing = true;
+   
+   Object.entries(SHORTCUTS).forEach(([code, mapping]) => {
+      let keyChar = '';
+      if (code.startsWith('Key')) keyChar = code.replace('Key', '');
+      else if (code === 'Comma') keyChar = ',';
+      else if (code === 'Period') keyChar = '.';
+      else return;
+
+      const elements = Array.from(document.querySelectorAll(mapping.selector)).filter(el => {
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+      });
+
+      if (elements.length > 0) {
+          const el = elements[0];
+          let hint = document.createElement('div');
+          hint.className = 'copilot-longpress-hint';
+          hint.style.cssText = 'position: fixed; background: #fffacd; color: #302505; border: 1px solid #d3c6a6; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 2px 6px; z-index: 2147483647; box-shadow: 0 2px 4px rgba(0,0,0,0.15); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; pointer-events: none;';
+          
+          const rect = el.getBoundingClientRect();
+          hint.style.top = `${rect.top + rect.height/2}px`;
+          hint.style.left = `${rect.left + rect.width/2}px`;
+          hint.style.transform = 'translate(-50%, -50%)';
+          
+          hint.textContent = `⌘${keyChar}`;
+          document.body.appendChild(hint);
+      }
+   });
+
+   // Cmd+1-9 hints for Recent Conversations
+   const recentItems = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]')).filter(el => {
+       const rect = el.getBoundingClientRect();
+       if (el.closest('#composer-dropdown-button-menu-contents, #task-chat-mode-dropdown-menu, [data-testid="task-chat-mode-dropdown-menu-contents"]')) return false;
+       return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+   });
+   
+   const uniqueRecent = [...new Set(recentItems)];
+   uniqueRecent.forEach((el, index) => {
+       if (index >= 9) return;
+       let hint = document.createElement('div');
+       hint.className = 'copilot-longpress-hint';
+       hint.style.cssText = 'position: fixed; background: #fffacd; color: #302505; border: 1px solid #d3c6a6; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 2px 6px; z-index: 2147483647; box-shadow: 0 2px 4px rgba(0,0,0,0.15); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; pointer-events: none;';
+       
+       const rect = el.getBoundingClientRect();
+       hint.style.top = `${rect.top + rect.height/2}px`;
+       hint.style.left = `${rect.right - 24}px`;
+       hint.style.transform = 'translate(-50%, -50%)';
+       
+       hint.textContent = `⌘${index + 1}`;
+       document.body.appendChild(hint);
+   });
+}
+
+function hideCmdHints() {
+   hintsShowing = false;
+   document.querySelectorAll('.copilot-longpress-hint').forEach(hint => hint.remove());
+}
+
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'Meta' || e.key === 'Control') {
+     isCmdPressed = false;
+     clearTimeout(cmdPressTimeout);
+     hideCmdHints();
+  }
+}, true);
+
+window.addEventListener('blur', () => {
+    isCmdPressed = false;
+    clearTimeout(cmdPressTimeout);
+    hideCmdHints();
+});
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        isCmdPressed = false;
+        clearTimeout(cmdPressTimeout);
+        hideCmdHints();
+    }
+});
+
 const handler = (e) => {
+  if (e.key === 'Meta' || e.key === 'Control') {
+     if (!isCmdPressed) {
+        isCmdPressed = true;
+        cmdPressTimeout = setTimeout(() => {
+           showCmdHints();
+        }, 600); // 600ms long press delay
+     }
+  }
+
   // Prevent double submissions in Copilot prompt (race condition block)
   if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
     const ae = document.activeElement;
@@ -440,6 +535,12 @@ setInterval(() => {
 
     modal.addEventListener('click', (e) => {
       if (e.target === modal) hideModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+        hideModal();
+      }
     });
   }
 
