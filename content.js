@@ -91,7 +91,7 @@ const handler = (e) => {
         // Cmd + 1-9: Select recent conversations (role="menuitem" outside of composer dropdown)
         const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]')).filter(el => {
             const rect = el.getBoundingClientRect();
-            if (el.closest('#composer-dropdown-button-menu-contents')) return false;
+            if (el.closest('#composer-dropdown-button-menu-contents, #task-chat-mode-dropdown-menu, [data-testid="task-chat-mode-dropdown-menu-contents"]')) return false;
             return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
         });
         
@@ -106,8 +106,8 @@ const handler = (e) => {
             }
         }
     } else if (!isTyping) {
-        // 1-9 without Cmd: Select from composer dropdown list
-        const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button')).filter(el => {
+        // 1-9 without Cmd: Select from composer dropdown list, task chat modes, or radio options
+        const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button, #task-chat-mode-dropdown-menu button, [data-testid="task-chat-mode-dropdown-menu-contents"] button, [role="radiogroup"] [role="radio"]')).filter(el => {
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
         });
@@ -159,7 +159,7 @@ window.addEventListener('copilot-shortcut', (e) => {
 
 // Add Vimium-style hints to visible dropdown list items
 setInterval(() => {
-    const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button')).filter(el => {
+    const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button, #task-chat-mode-dropdown-menu button, [data-testid="task-chat-mode-dropdown-menu-contents"] button, [role="radiogroup"] [role="radio"]')).filter(el => {
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
     });
