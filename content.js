@@ -81,28 +81,47 @@ const handler = (e) => {
     return;
   }
 
-  // Handle number keys to click on opened popup menu items
-  if (e.key >= '1' && e.key <= '9' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+  // Handle number keys to click on opened popup menu items or recent conversations
+  if (e.key >= '1' && e.key <= '9' && !e.altKey && !e.shiftKey) {
     const ae = document.activeElement;
     const tag = (ae?.tagName || "").toLowerCase();
     const isTyping = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
     
-    if (!isTyping) {
-       // Find all visible menu items
-       const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]')).filter(el => {
-           const rect = el.getBoundingClientRect();
-           return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
-       });
-       
-       if (items.length > 0) {
-           const num = parseInt(e.key, 10);
-           if (num > 0 && num <= items.length) {
-               e.preventDefault();
-               e.stopPropagation();
-               items[num - 1].click();
-               return;
-           }
-       }
+    if (e.metaKey || e.ctrlKey) {
+        // Cmd + 1-9: Select recent conversations (role="menuitem" outside of composer dropdown)
+        const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]')).filter(el => {
+            const rect = el.getBoundingClientRect();
+            if (el.closest('#composer-dropdown-button-menu-contents')) return false;
+            return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+        });
+        
+        const uniqueItems = [...new Set(items)];
+        if (uniqueItems.length > 0) {
+            const num = parseInt(e.key, 10);
+            if (num > 0 && num <= uniqueItems.length) {
+                e.preventDefault();
+                e.stopPropagation();
+                uniqueItems[num - 1].click();
+                return;
+            }
+        }
+    } else if (!isTyping) {
+        // 1-9 without Cmd: Select from composer dropdown list
+        const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button')).filter(el => {
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+        });
+        
+        const uniqueItems = [...new Set(items)];
+        if (uniqueItems.length > 0) {
+            const num = parseInt(e.key, 10);
+            if (num > 0 && num <= uniqueItems.length) {
+                e.preventDefault();
+                e.stopPropagation();
+                uniqueItems[num - 1].click();
+                return;
+            }
+        }
     }
   }
 
@@ -137,6 +156,41 @@ window.addEventListener('copilot-shortcut', (e) => {
     if (el) triggerElement(el, mapping.isInput ?? false);
   }
 });
+
+// Add Vimium-style hints to visible dropdown list items
+setInterval(() => {
+    const items = Array.from(document.querySelectorAll('#composer-dropdown-button-menu-contents button')).filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+    });
+    const uniqueItems = [...new Set(items)];
+    
+    document.querySelectorAll('.copilot-shortcut-hint').forEach(hint => {
+        if (!uniqueItems.includes(hint.parentElement)) {
+            hint.remove();
+        }
+    });
+
+    uniqueItems.forEach((item, index) => {
+        if (index >= 9) {
+            const extraHint = item.querySelector('.copilot-shortcut-hint');
+            if (extraHint) extraHint.remove();
+            return;
+        }
+        const num = index + 1;
+        let hint = item.querySelector('.copilot-shortcut-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.className = 'copilot-shortcut-hint';
+            hint.style.cssText = 'position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: #fffacd; color: #302505; border: 1px solid #d3c6a6; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 2px 6px; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.15); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; pointer-events: none;';
+            if (window.getComputedStyle(item).position === 'static') {
+                item.style.position = 'relative';
+            }
+            item.appendChild(hint);
+        }
+        hint.textContent = `${num}`;
+    });
+}, 250);
 
 // -------------------------------------------------------------
 //  Browser-style "Find in Page" (Cmd+F) Implementation
@@ -325,7 +379,8 @@ window.addEventListener('copilot-shortcut', (e) => {
       { key: 'Cmd + .', desc: 'Toggle Sidebar' },
       { key: 'Cmd + F', desc: 'Find in Page' },
       { key: 'Cmd + [ / ]', desc: 'History Back / Forward' },
-      { key: '1 - 9', desc: 'Select Open Menu Item' },
+      { key: 'Cmd + 1 - 9', desc: 'Select Recent Conversation' },
+      { key: '1 - 9', desc: 'Select List Item' },
       { key: 'Cmd + /', desc: 'Show this Modal' },
       { key: '/', desc: 'Focus Chat Input' },
     ];
