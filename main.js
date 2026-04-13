@@ -142,50 +142,60 @@ function createWindow() {
     }
   });
 
-  // Handle Global Shortcuts
-  win.on('focus', () => {
-    // Removed 'A', 'C', 'V', 'X' to prevent conflicts with Select All, Copy, Paste, and Cut
-    const shortcuts = ['N', 'L', 'T', 'D', 'S', 'I', 'B', 'M', 'K', 'E', 'Comma', 'Period'];
-    shortcuts.forEach(key => {
-      let accelerator = `CommandOrControl+${key}`;
-      if (key === 'Comma') accelerator = 'CommandOrControl+,';
-      if (key === 'Period') accelerator = 'CommandOrControl+.';
+  // Handle App-Specific Shortcuts using before-input-event
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
 
-      globalShortcut.register(accelerator, () => {
-        if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-          win.webContents.send('trigger-shortcut', key === 'Comma' ? 'Comma' : (key === 'Period' ? 'Period' : `Key${key}`) );
-        }
-      });
-    });
+    const isCmdOrCtrl = input.meta || input.control;
 
-    // Voice Shortcut (moved to U to avoid Cmd+V Paste conflict)
-    globalShortcut.register('CommandOrControl+U', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyV');
-    });
+    if (isCmdOrCtrl) {
+      const key = input.key.toUpperCase();
+      const validLetterKeys = ['N', 'L', 'T', 'D', 'S', 'I', 'B', 'M', 'K', 'E'];
 
-    globalShortcut.register('CommandOrControl+/', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-shortcuts-modal');
-    });
-    
-    globalShortcut.register('CommandOrControl+F', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('show-find-bar');
-    });
-
-    globalShortcut.register('CommandOrControl+Shift+O', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('trigger-shortcut', 'KeyO');
-    });
-
-    globalShortcut.register('CommandOrControl+[', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed() && win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack();
-    });
-
-    globalShortcut.register('CommandOrControl+]', () => {
-      if (win && !win.isDestroyed() && !win.webContents.isDestroyed() && win.webContents.navigationHistory.canGoForward()) win.webContents.navigationHistory.goForward();
-    });
-  });
-
-  win.on('blur', () => {
-    globalShortcut.unregisterAll();
+      // Basic letter shortcuts
+      if (validLetterKeys.includes(key) && !input.shift) {
+        win.webContents.send('trigger-shortcut', `Key${key}`);
+        event.preventDefault();
+      } 
+      else if (key === ',' && !input.shift) {
+        win.webContents.send('trigger-shortcut', 'Comma');
+        event.preventDefault();
+      } 
+      else if (key === '.' && !input.shift) {
+        win.webContents.send('trigger-shortcut', 'Period');
+        event.preventDefault();
+      } 
+      // Voice Shortcut (moved to U to avoid Cmd+V Paste conflict)
+      else if (key === 'U' && !input.shift) {
+        win.webContents.send('trigger-shortcut', 'KeyV');
+        event.preventDefault();
+      } 
+      // Show shortcuts modal
+      else if (key === '/' && !input.shift) {
+        win.webContents.send('show-shortcuts-modal');
+        event.preventDefault();
+      } 
+      // Show find bar
+      else if (key === 'F' && !input.shift) {
+        win.webContents.send('show-find-bar');
+        event.preventDefault();
+      } 
+      // Shift+O shortcut
+      else if (key === 'O' && input.shift) {
+        win.webContents.send('trigger-shortcut', 'KeyO');
+        event.preventDefault();
+      } 
+      // Navigation Back
+      else if (key === '[' && !input.shift) {
+        if (win.webContents.navigationHistory.canGoBack()) win.webContents.navigationHistory.goBack();
+        event.preventDefault();
+      } 
+      // Navigation Forward
+      else if (key === ']' && !input.shift) {
+        if (win.webContents.navigationHistory.canGoForward()) win.webContents.navigationHistory.goForward();
+        event.preventDefault();
+      }
+    }
   });
 }
 ipcMain.on('find-in-page', (event, text, options) => {

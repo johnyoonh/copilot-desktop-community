@@ -39,7 +39,7 @@ const SHORTCUTS = {
   KeyB: { selector: '[aria-label="Labs"]' }, // Labs moved to B to free up A for Select All
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyE: { selector: '[data-testid="composer-create-button"]', isInput: true },
-  KeyV: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
+  KeyU: { selector: '[aria-label="Talk to Copilot"]' },
   KeyX: { selector: '[title="Invite"]' },
   KeyK: { selector: '[aria-label="Search chats"], [aria-label="Search"], [data-testid="search-button"]', isInput: true },
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
@@ -56,6 +56,8 @@ function showCmdHints() {
    hintsShowing = true;
    
    Object.entries(SHORTCUTS).forEach(([code, mapping]) => {
+      if (code === 'KeyO') return; // Skip KeyO, we will combine it with KeyN
+
       let keyChar = '';
       if (code.startsWith('Key')) keyChar = code.replace('Key', '');
       else if (code === 'Comma') keyChar = ',';
@@ -78,7 +80,10 @@ function showCmdHints() {
           hint.style.left = `${rect.left + rect.width/2}px`;
           hint.style.transform = 'translate(-50%, -50%)';
           
-          hint.textContent = `⌘${keyChar}`;
+          let displayStr = `⌘${keyChar}`;
+          if (code === 'KeyN') displayStr = `⌘N (⌘⇧O)`;
+          
+          hint.textContent = displayStr;
           document.body.appendChild(hint);
       }
    });
@@ -141,6 +146,44 @@ const handler = (e) => {
            showCmdHints();
         }, 600); // 600ms long press delay
      }
+  }
+
+  // Handle Option+Up/Down to navigate sidebar lists (conversations, tasks)
+  if (e.altKey && !e.shiftKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      const active = document.activeElement;
+      const tag = (active?.tagName || "").toLowerCase();
+      const isTyping = tag === "input" || tag === "textarea" || active?.isContentEditable || active?.getAttribute?.("role") === "textbox";
+      
+      if (!isTyping) {
+          const items = Array.from(document.querySelectorAll('[role="option"], ul[role="list"] li a')).filter(el => {
+              const rect = el.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden';
+          });
+
+          if (items.length > 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              const idx = items.indexOf(active);
+
+              let targetIdx = idx;
+              if (targetIdx === -1 && active) {
+                  const closestItem = active.closest('[role="option"], ul[role="list"] li a');
+                  if (closestItem) targetIdx = items.indexOf(closestItem);
+              }
+
+              if (targetIdx === -1) {
+                  if (e.key === 'ArrowUp') items[items.length - 1].focus();
+                  else items[0].focus();
+              } else {
+                  if (e.key === 'ArrowUp') {
+                      items[Math.max(0, targetIdx - 1)].focus();
+                  } else {
+                      items[Math.min(items.length - 1, targetIdx + 1)].focus();
+                  }
+              }
+              return;
+          }
+      }
   }
 
   // Prevent double submissions in Copilot prompt (race condition block)
@@ -457,8 +500,7 @@ setInterval(() => {
     list.style.cssText = 'display: grid; grid-template-columns: 1fr; gap: 12px; max-height: 60vh; overflow-y: auto; padding-right: 8px;';
 
     const shortcutsList = [
-      { key: 'Cmd + N', desc: 'New Chat' },
-      { key: 'Cmd + Shift + O', desc: 'New Chat' },
+      { key: 'Cmd + N', altKey: 'Cmd + Shift + O', desc: 'New Chat' },
       { key: 'Cmd + L', desc: 'Library' },
       { key: 'Cmd + T', desc: 'Tasks' },
       { key: 'Cmd + D', desc: 'Discover' },
@@ -466,7 +508,7 @@ setInterval(() => {
       { key: 'Cmd + I', desc: 'Imagine' },
       { key: 'Cmd + B', desc: 'Labs' },
       { key: 'Cmd + M', desc: 'Switch Chat Mode' },
-      { key: 'Cmd + V', desc: 'Voice / Talk' },
+      { key: 'Cmd + U', desc: 'Voice / Talk' },
       { key: 'Cmd + X', desc: 'Invite' },
       { key: 'Cmd + E', desc: 'Attach / Create' },
       { key: 'Cmd + K', desc: 'Search Chats' },
@@ -491,29 +533,55 @@ setInterval(() => {
       desc.style.cssText = 'font-size: 15px; font-weight: 500; color: rgba(255, 255, 255, 0.9);';
       
       const keys = document.createElement('div');
-      keys.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+      keys.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center;';
       
-      const keyParts = item.key.split(' ').filter(p => !!p);
-      keyParts.forEach(part => {
-        if (part !== '+') {
-          const keyBadge = document.createElement('kbd');
-          keyBadge.textContent = part.replace('Cmd', '⌘').replace('Shift', '⇧');
-          keyBadge.style.cssText = `
-            background: rgba(255, 255, 255, 0.1); 
-            border: 1px solid rgba(255, 255, 255, 0.2); 
-            border-radius: 6px; padding: 4px 8px; 
-            font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
-            color: #ddd;
-          `;
-          keys.appendChild(keyBadge);
-        } else if (part === '+') {
-          const plus = document.createElement('span');
-          plus.textContent = '+';
-          plus.style.cssText = 'color: #888; font-size: 12px; font-weight: bold; padding: 0 2px;';
-          keys.appendChild(plus);
-        }
-      });
+      const renderKeyString = (keyStr, isAlt) => {
+          const container = document.createElement('div');
+          container.style.cssText = 'display: flex; gap: 4px; align-items: center;';
+          
+          if (isAlt) {
+              const parenL = document.createElement('span');
+              parenL.textContent = '(';
+              parenL.style.cssText = 'color: #888; font-size: 14px; margin-left: 4px;';
+              container.appendChild(parenL);
+          }
+          
+          const parts = keyStr.split(' ').filter(p => !!p);
+          parts.forEach(part => {
+            if (part !== '+') {
+              const keyBadge = document.createElement('kbd');
+              keyBadge.textContent = part.replace('Cmd', '⌘').replace('Shift', '⇧');
+              keyBadge.style.cssText = `
+                background: rgba(255, 255, 255, 0.1); 
+                border: 1px solid rgba(255, 255, 255, 0.2); 
+                border-radius: 6px; padding: 4px 8px; 
+                font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+                box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+                color: #ddd;
+              `;
+              container.appendChild(keyBadge);
+            } else if (part === '+') {
+              const plus = document.createElement('span');
+              plus.textContent = '+';
+              plus.style.cssText = 'color: #888; font-size: 12px; font-weight: bold; padding: 0 2px;';
+              container.appendChild(plus);
+            }
+          });
+          
+          if (isAlt) {
+              const parenR = document.createElement('span');
+              parenR.textContent = ')';
+              parenR.style.cssText = 'color: #888; font-size: 14px;';
+              container.appendChild(parenR);
+          }
+          
+          return container;
+      };
+
+      keys.appendChild(renderKeyString(item.key, false));
+      if (item.altKey) {
+          keys.appendChild(renderKeyString(item.altKey, true));
+      }
       
       row.appendChild(desc);
       row.appendChild(keys);
