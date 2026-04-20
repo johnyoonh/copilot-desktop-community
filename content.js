@@ -612,6 +612,8 @@ setInterval(() => {
     });
   }
 
+  let autoDismissTimer = null;
+
   function showModal() {
     createModal();
     modal.style.display = 'flex';
@@ -619,10 +621,14 @@ setInterval(() => {
       modal.style.opacity = '1';
       modal.children[1].style.transform = 'scale(1) translateY(0)';
     });
+    clearTimeout(autoDismissTimer);
+    autoDismissTimer = setTimeout(() => hideModal(), 5000);
   }
 
   function hideModal() {
     if (!modal) return;
+    clearTimeout(autoDismissTimer);
+    autoDismissTimer = null;
     modal.style.opacity = '0';
     modal.children[1].style.transform = 'scale(0.95) translateY(10px)';
     setTimeout(() => {
