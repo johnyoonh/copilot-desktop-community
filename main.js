@@ -184,6 +184,11 @@ function createWindow() {
         win.webContents.send('trigger-shortcut', 'KeyO');
         event.preventDefault();
       }
+      // Cmd+Shift+U: stop voice / talk session (complements Cmd+U which starts it)
+      else if (key === 'U' && input.shift) {
+        win.webContents.send('trigger-shortcut', 'StopTalking');
+        event.preventDefault();
+      }
       // Cmd+Shift+M: open macOS/Windows microphone privacy settings
       else if (key === 'M' && input.shift) {
         if (process.platform === 'darwin') {
