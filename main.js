@@ -164,12 +164,7 @@ function createWindow() {
       else if (key === '.' && !input.shift) {
         win.webContents.send('trigger-shortcut', 'Period');
         event.preventDefault();
-      } 
-      // Voice Shortcut (moved to U to avoid Cmd+V Paste conflict)
-      else if (key === 'U' && !input.shift) {
-        win.webContents.send('trigger-shortcut', 'KeyV');
-        event.preventDefault();
-      } 
+
       // Show shortcuts modal
       else if (key === '/' && !input.shift) {
         win.webContents.send('show-shortcuts-modal');
