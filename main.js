@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem, session, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -183,6 +183,20 @@ function createWindow() {
       else if (key === 'O' && input.shift) {
         win.webContents.send('trigger-shortcut', 'KeyO');
         event.preventDefault();
+      }
+      // Cmd+Shift+M: open macOS/Windows microphone privacy settings
+      else if (key === 'M' && input.shift) {
+        if (process.platform === 'darwin') {
+          shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+        } else if (process.platform === 'win32') {
+          shell.openExternal('ms-settings:privacy-microphone');
+        }
+        event.preventDefault();
+      }
+      // Cmd+Shift+D: show mic diagnostics banner in renderer
+      else if (key === 'D' && input.shift) {
+        win.webContents.send('show-mic-diagnostics');
+        event.preventDefault();
       } 
       // Navigation Back
       else if (key === '[' && !input.shift) {
@@ -211,7 +225,103 @@ ipcMain.on('stop-find', () => {
   }
 });
 
-app.whenReady().then(() => {
+ipcMain.handle('get-mic-diagnostics', () => getMicDiagnostics());
+
+ipcMain.on('open-mic-settings', () => {
+  if (process.platform === 'darwin') {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+  } else if (process.platform === 'win32') {
+    shell.openExternal('ms-settings:privacy-microphone');
+  }
+});
+
+// Grant microphone (and related media) permission to Copilot origins so that
+// the page's getUserMedia call actually receives an audio track when the user
+// activates "Talk to Copilot". Without this, Electron silently denies the
+// request and the voice UI appears to "listen" but hears nothing.
+const ALLOWED_MEDIA_ORIGINS = new Set([
+  'https://copilot.microsoft.com',
+  'https://www.copilot.microsoft.com',
+]);
+
+const MEDIA_PERMISSIONS = new Set(['media', 'microphone', 'audioCapture']);
+
+function isAllowedMediaOrigin(originOrUrl) {
+  if (!originOrUrl) return false;
+  try {
+    return ALLOWED_MEDIA_ORIGINS.has(new URL(originOrUrl).origin);
+  } catch {
+    return false;
+  }
+}
+
+function configureMediaPermissions() {
+  const s = session.defaultSession;
+
+  s.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    if (MEDIA_PERMISSIONS.has(permission)) {
+      const requestingUrl = details?.requestingUrl || webContents?.getURL();
+      const mediaTypes = details?.mediaTypes ? JSON.stringify(details.mediaTypes) : '[]';
+      const allow = isAllowedMediaOrigin(requestingUrl);
+      console.log(`[Main] Permission REQUEST: ${permission} mediaTypes=${mediaTypes} url=${requestingUrl} -> ${allow ? 'ALLOW' : 'DENY'}`);
+      return callback(allow);
+    }
+    callback(false);
+  });
+
+  s.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    if (MEDIA_PERMISSIONS.has(permission)) {
+      const allow = isAllowedMediaOrigin(requestingOrigin);
+      console.log(`[Main] Permission CHECK: ${permission} origin=${requestingOrigin} -> ${allow ? 'ALLOW' : 'DENY'}`);
+      return allow;
+    }
+    return false;
+  });
+
+  // Accept device access on macOS 15+ (enumerateDevices labels, etc.)
+  s.setDevicePermissionHandler?.((details) => {
+    if (details.deviceType === 'audioInput' || details.deviceType === 'videoInput') {
+      return isAllowedMediaOrigin(details.origin);
+    }
+    return false;
+  });
+}
+
+function getMicDiagnostics() {
+  const info = {
+    platform: process.platform,
+    execPath: process.execPath,
+    bundlePath: app.getPath('exe'),
+    appName: app.getName(),
+    version: app.getVersion(),
+    electronVersion: process.versions.electron,
+    micStatus: 'unknown',
+  };
+  if (process.platform === 'darwin') {
+    try { info.micStatus = systemPreferences.getMediaAccessStatus('microphone'); } catch {}
+  }
+  return info;
+}
+
+// Prompt the macOS mic access dialog up front so the OS-level permission is
+// in place before the user triggers voice. Safe no-op on non-darwin.
+async function primeMacMicrophoneAccess() {
+  if (process.platform !== 'darwin') return;
+  try {
+    const status = systemPreferences.getMediaAccessStatus('microphone');
+    console.log(`[Main] macOS microphone access status: ${status}`);
+    if (status !== 'granted') {
+      const granted = await systemPreferences.askForMediaAccess('microphone');
+      console.log(`[Main] macOS microphone access granted: ${granted}`);
+    }
+  } catch (err) {
+    console.error('[Main] Failed to query/request microphone access:', err);
+  }
+}
+
+app.whenReady().then(async () => {
+  configureMediaPermissions();
+  await primeMacMicrophoneAccess();
   createWindow();
 
   // Listen for results globally
