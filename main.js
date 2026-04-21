@@ -164,6 +164,10 @@ function createWindow() {
       else if (key === '.' && !input.shift) {
         win.webContents.send('trigger-shortcut', 'Period');
         event.preventDefault();
+      }
+      // Cmd+U intentionally NOT intercepted here — letting the native keydown
+      // reach the renderer preserves the user-activation required for
+      // getUserMedia (microphone) when content.js clicks "Talk to Copilot".
 
       // Show shortcuts modal
       else if (key === '/' && !input.shift) {
