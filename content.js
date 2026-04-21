@@ -39,7 +39,7 @@ const SHORTCUTS = {
   KeyB: { selector: '[aria-label="Labs"]' }, // Labs moved to B to free up A for Select All
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyE: { selector: '[data-testid="composer-create-button"]', isInput: true },
-  KeyU: { selector: '[aria-label="Talk to Copilot"]' },
+  KeyU: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
   KeyX: { selector: '[title="Invite"]' },
   KeyK: { selector: '[aria-label="Search chats"], [aria-label="Search"], [data-testid="search-button"]', isInput: true },
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
@@ -272,7 +272,7 @@ const handler = (e) => {
   const ae = document.activeElement;
   const tag = (ae?.tagName || "").toLowerCase();
   const typing = tag === "input" || tag === "textarea" || ae?.isContentEditable || ae?.getAttribute?.("role") === "textbox";
-  if (typing && !mapping.isInput && code !== 'KeyO' && code !== 'KeyN') return;
+  if (typing && !mapping.isInput && code !== 'KeyO' && code !== 'KeyN' && code !== 'KeyU') return;
 
   // Let standard browser shortcuts (Select All, Copy, Paste, Cut) pass through
   if (code === 'KeyA' || code === 'KeyC' || code === 'KeyV' || code === 'KeyX') return;
