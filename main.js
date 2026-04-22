@@ -240,21 +240,41 @@ ipcMain.on('open-mic-settings', () => {
   }
 });
 
-// Grant microphone (and related media) permission to Copilot origins so that
-// the page's getUserMedia call actually receives an audio track when the user
-// activates "Talk to Copilot". Without this, Electron silently denies the
-// request and the voice UI appears to "listen" but hears nothing.
-const ALLOWED_MEDIA_ORIGINS = new Set([
+// Origins we consider "trusted first-party" for this app. Everything the
+// Copilot page legitimately needs (mic, clipboard, notifications, etc.) is
+// granted here; requests from any other origin are denied.
+const TRUSTED_ORIGINS = new Set([
   'https://copilot.microsoft.com',
   'https://www.copilot.microsoft.com',
 ]);
 
+// Permission types we grant to trusted origins. Anything not in this set is
+// denied even for trusted origins (defense in depth against new Electron
+// permission categories we haven't reviewed yet).
+//   - media / microphone / audioCapture: voice chat ("Talk to Copilot")
+//   - clipboard-read / clipboard-sanitized-write: copy/paste buttons in chat
+//     (fixes "Failed to copy table" when Copilot uses navigator.clipboard.write)
+//   - notifications: desktop notifications for long-running tasks
+//   - fullscreen / pointerLock: harmless, user-gesture gated
+//   - geolocation: used by location-aware answers; remove if undesired
+const TRUSTED_PERMISSIONS = new Set([
+  'media',
+  'microphone',
+  'audioCapture',
+  'clipboard-read',
+  'clipboard-sanitized-write',
+  'notifications',
+  'fullscreen',
+  'pointerLock',
+  'geolocation',
+]);
+
 const MEDIA_PERMISSIONS = new Set(['media', 'microphone', 'audioCapture']);
 
-function isAllowedMediaOrigin(originOrUrl) {
+function isTrustedOrigin(originOrUrl) {
   if (!originOrUrl) return false;
   try {
-    return ALLOWED_MEDIA_ORIGINS.has(new URL(originOrUrl).origin);
+    return TRUSTED_ORIGINS.has(new URL(originOrUrl).origin);
   } catch {
     return false;
   }
@@ -264,29 +284,29 @@ function configureMediaPermissions() {
   const s = session.defaultSession;
 
   s.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    if (MEDIA_PERMISSIONS.has(permission)) {
-      const requestingUrl = details?.requestingUrl || webContents?.getURL();
-      const mediaTypes = details?.mediaTypes ? JSON.stringify(details.mediaTypes) : '[]';
-      const allow = isAllowedMediaOrigin(requestingUrl);
-      console.log(`[Main] Permission REQUEST: ${permission} mediaTypes=${mediaTypes} url=${requestingUrl} -> ${allow ? 'ALLOW' : 'DENY'}`);
-      return callback(allow);
+    const requestingUrl = details?.requestingUrl || webContents?.getURL();
+    const trusted = isTrustedOrigin(requestingUrl);
+    const allow = trusted && TRUSTED_PERMISSIONS.has(permission);
+    if (MEDIA_PERMISSIONS.has(permission) || !allow) {
+      const mediaTypes = details?.mediaTypes ? ` mediaTypes=${JSON.stringify(details.mediaTypes)}` : '';
+      console.log(`[Main] Permission REQUEST: ${permission}${mediaTypes} url=${requestingUrl} -> ${allow ? 'ALLOW' : 'DENY'}`);
     }
-    callback(false);
+    callback(allow);
   });
 
   s.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    const trusted = isTrustedOrigin(requestingOrigin);
+    const allow = trusted && TRUSTED_PERMISSIONS.has(permission);
     if (MEDIA_PERMISSIONS.has(permission)) {
-      const allow = isAllowedMediaOrigin(requestingOrigin);
       console.log(`[Main] Permission CHECK: ${permission} origin=${requestingOrigin} -> ${allow ? 'ALLOW' : 'DENY'}`);
-      return allow;
     }
-    return false;
+    return allow;
   });
 
-  // Accept device access on macOS 15+ (enumerateDevices labels, etc.)
+  // Device access on macOS 15+ (enumerateDevices labels, etc.)
   s.setDevicePermissionHandler?.((details) => {
     if (details.deviceType === 'audioInput' || details.deviceType === 'videoInput') {
-      return isAllowedMediaOrigin(details.origin);
+      return isTrustedOrigin(details.origin);
     }
     return false;
   });
