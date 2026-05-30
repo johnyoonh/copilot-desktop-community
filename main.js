@@ -4,6 +4,24 @@ const fs = require('fs');
 const { version } = require('./package.json');
 
 const desktopUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+const desktopUserAgentMetadata = {
+  brands: [
+    { brand: 'Not A(Brand', version: '8' },
+    { brand: 'Chromium', version: '132' },
+    { brand: 'Google Chrome', version: '132' },
+  ],
+  fullVersionList: [
+    { brand: 'Not A(Brand', version: '8.0.0.0' },
+    { brand: 'Chromium', version: '132.0.6834.210' },
+    { brand: 'Google Chrome', version: '132.0.6834.210' },
+  ],
+  fullVersion: '132.0.6834.210',
+  platform: 'Windows',
+  platformVersion: '19.0.0',
+  architecture: 'x86',
+  model: '',
+  mobile: false,
+};
 const desktopUserAgentClientHints = {
   'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
   'sec-ch-ua-mobile': '?0',
@@ -119,6 +137,35 @@ function configureSessionForMicrosoftAuth(targetSession) {
   });
 }
 
+function withTimeout(promise, milliseconds) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${milliseconds}ms`)), milliseconds)),
+  ]);
+}
+
+function applyChromeIdentity(webContents, scope) {
+  webContents.setUserAgent(desktopUserAgent);
+
+  (async () => {
+    try {
+      if (!webContents.debugger.isAttached()) {
+        webContents.debugger.attach('1.3');
+      }
+
+      await withTimeout(webContents.debugger.sendCommand('Network.enable'), 1500);
+      await withTimeout(webContents.debugger.sendCommand('Network.setUserAgentOverride', {
+        userAgent: desktopUserAgent,
+        platform: 'Windows',
+        userAgentMetadata: desktopUserAgentMetadata,
+      }), 1500);
+      logApp(`Applied Chrome identity to ${scope}`);
+    } catch (err) {
+      logApp(`Failed to apply Chrome identity to ${scope}: ${err.message}`);
+    }
+  })();
+}
+
 function getHostname(url) {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -175,7 +222,7 @@ function reloadMainWindowAfterAuth(authWindow) {
 function watchAuthWindow(authWindow, initialUrl) {
   let sawAuthNavigation = isMicrosoftAuthUrl(initialUrl);
   logNavigation('auth-popup', 'created', initialUrl);
-  authWindow.webContents.setUserAgent(desktopUserAgent);
+  applyChromeIdentity(authWindow.webContents, 'auth popup');
 
   const handleNavigation = (url, canCompleteAuth = false) => {
     logNavigation('auth-popup', canCompleteAuth ? 'did-navigate' : 'redirect', url);
@@ -345,7 +392,7 @@ function createWindow() {
     },
   });
 
-  win.webContents.setUserAgent(desktopUserAgent);
+  applyChromeIdentity(win.webContents, 'main window');
   win.loadURL('https://copilot.microsoft.com');
 
   win.webContents.on('did-navigate', (_event, url) => {
