@@ -27,10 +27,18 @@ const desktopUserAgentClientHints = {
   'sec-ch-ua-mobile': '?0',
   'sec-ch-ua-platform': '"Windows"',
 };
+const disabledAuthBreakingFeatures = [
+  'BlockThirdPartyCookies',
+  'TrackingProtection3pcd',
+  'ThirdPartyStoragePartitioning',
+  'ThirdPartyCookiesPhaseout',
+];
 
 // Set the name before app is ready for better Dock/Taskbar display in dev
 app.setName('Copilot Desktop CE');
 app.userAgentFallback = desktopUserAgent;
+app.commandLine.appendSwitch('disable-features', disabledAuthBreakingFeatures.join(','));
+app.commandLine.appendSwitch('disable-site-isolation-trials');
 
 // Register URL scheme for deep linking
 if (process.defaultApp) {
@@ -663,6 +671,7 @@ app.whenReady().then(() => {
   configureSessionForMicrosoftAuth(session.defaultSession);
   logApp(`Starting Copilot Desktop CE ${version}`);
   logApp(`Using user agent: ${desktopUserAgent}`);
+  logApp(`Disabled auth-breaking Chromium features: ${disabledAuthBreakingFeatures.join(', ')}`);
   createApplicationMenu();
   createWindow();
 
