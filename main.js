@@ -4,6 +4,7 @@ const fs = require('fs');
 
 // Set the name before app is ready for better Dock/Taskbar display in dev
 app.setName('Copilot Desktop CE');
+app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/\S+/, '');
 
 // Register URL scheme for deep linking
 if (process.defaultApp) {
@@ -16,6 +17,101 @@ if (process.defaultApp) {
 
 let win;
 const contentJs = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+function logNavigation(scope, action, url) {
+  const message = `[Navigation:${scope}] ${action}: ${url}`;
+  console.log(message);
+
+  if (app.isReady()) {
+    fs.appendFile(
+      path.join(app.getPath('userData'), 'navigation.log'),
+      `${new Date().toISOString()} ${message}\n`,
+      () => {}
+    );
+  }
+}
+
+function getHostname(url) {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function hostnameMatches(hostname, domain) {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
+function isCopilotUrl(url) {
+  return hostnameMatches(getHostname(url), 'copilot.microsoft.com');
+}
+
+function isMicrosoftAuthUrl(url) {
+  const hostname = getHostname(url);
+  return [
+    'login.live.com',
+    'login.microsoft.com',
+    'login.microsoftonline.com',
+    'account.live.com',
+    'account.microsoft.com',
+  ].some((domain) => hostnameMatches(hostname, domain));
+}
+
+function isAllowedInAppUrl(url) {
+  const hostname = getHostname(url);
+  return isCopilotUrl(url) ||
+    isMicrosoftAuthUrl(url) ||
+    hostnameMatches(hostname, 'bing.com') ||
+    hostnameMatches(hostname, 'microsoft.com') ||
+    hostnameMatches(hostname, 'live.com');
+}
+
+function reloadMainWindowAfterAuth(authWindow) {
+  if (!win || win.isDestroyed()) return;
+
+  logNavigation('auth', 'completed, reloading main window', 'https://copilot.microsoft.com');
+  win.loadURL('https://copilot.microsoft.com');
+  win.focus();
+
+  if (authWindow && !authWindow.isDestroyed()) {
+    authWindow.close();
+  }
+}
+
+function watchAuthWindow(authWindow, initialUrl) {
+  let sawAuthNavigation = isMicrosoftAuthUrl(initialUrl);
+  logNavigation('auth-popup', 'created', initialUrl);
+
+  const handleNavigation = (url, canCompleteAuth = false) => {
+    logNavigation('auth-popup', canCompleteAuth ? 'did-navigate' : 'redirect', url);
+
+    if (isMicrosoftAuthUrl(url)) {
+      sawAuthNavigation = true;
+    }
+
+    if (canCompleteAuth && sawAuthNavigation && isCopilotUrl(url)) {
+      reloadMainWindowAfterAuth(authWindow);
+    }
+  };
+
+  authWindow.webContents.on('did-navigate', (_event, url) => handleNavigation(url, true));
+  authWindow.webContents.on('did-redirect-navigation', (_event, url) => handleNavigation(url));
+  authWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAllowedInAppUrl(url)) return;
+
+    logNavigation('auth-popup', 'external', url);
+    event.preventDefault();
+    shell.openExternal(url);
+  });
+  authWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedInAppUrl(url)) return { action: 'allow' };
+
+    logNavigation('auth-popup', 'external-window', url);
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+}
 
 function handleDeepLink(url) {
   if (!win) return;
@@ -53,29 +149,29 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      nodeIntegrationInSubFrames: true, // Crucial for iframes
+      nodeIntegrationInSubFrames: false,
     },
   });
 
   win.loadURL('https://copilot.microsoft.com');
 
-  // Open external links (target="_blank") in default browser
+  // Keep Copilot sign-in inside Electron so auth cookies land in this app.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    const parsedUrl = new URL(url);
-    if (!parsedUrl.hostname.includes('copilot.microsoft.com') && !parsedUrl.hostname.includes('login.live.com')) {
-      shell.openExternal(url);
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
+    if (isAllowedInAppUrl(url)) return { action: 'allow' };
+
+    logNavigation('main', 'external-window', url);
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  win.webContents.on('did-create-window', (childWindow, details) => {
+    watchAuthWindow(childWindow, details.url);
   });
 
   // Intercept standard navigation to open external links in default browser
   win.webContents.on('will-navigate', (event, url) => {
-    const parsedUrl = new URL(url);
-    if (!parsedUrl.hostname.includes('copilot.microsoft.com') && 
-        !parsedUrl.hostname.includes('bing.com') && 
-        !parsedUrl.hostname.includes('microsoft.com') && 
-        !parsedUrl.hostname.includes('live.com')) {
+    if (!isAllowedInAppUrl(url)) {
+      logNavigation('main', 'external', url);
       event.preventDefault();
       shell.openExternal(url);
     }
@@ -134,7 +230,7 @@ function createWindow() {
   // Inject into every frame as it finishes loading
   win.webContents.on('did-frame-finish-load', (event, isMainFrame, frameProcessId, frameRoutingId) => {
     const frame = webFrameMain.fromId(frameProcessId, frameRoutingId);
-    if (frame) {
+    if (frame && isCopilotUrl(frame.url)) {
       console.log(`[Main] Injecting JS into frame: ${frame.url}`);
       frame.executeJavaScript(contentJs).catch(err => {
         console.error(`[Main] Failed to inject JS into frame ${frame.url}:`, err);

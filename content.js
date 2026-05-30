@@ -2,6 +2,11 @@
 //  Copilot Shortcuts — Cmd/Ctrl edition
 // =============================================================
 
+if (window.__copilotDesktopShortcutsLoaded) {
+  console.log("[Copilot Shortcuts] Already loaded, skipping duplicate injection");
+} else {
+window.__copilotDesktopShortcutsLoaded = true;
+
 console.log(
   "%c[Copilot Shortcuts] Loaded — listening for Cmd/Ctrl+Key combos",
   "color: #78D4; font-weight: bold; font-size: 14px;"
@@ -641,3 +646,4 @@ setInterval(() => {
     else showModal();
   });
 })();
+}
