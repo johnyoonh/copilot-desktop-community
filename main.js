@@ -26,6 +26,15 @@ if (process.defaultApp) {
 let win;
 const contentJs = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 const diagnosticsFiles = ['app.log', 'navigation.log'];
+const diagnosticHostnames = [
+  'copilot.microsoft.com',
+  'login.live.com',
+  'login.microsoft.com',
+  'login.microsoftonline.com',
+  'account.live.com',
+  'account.microsoft.com',
+  'graph.microsoft.com',
+];
 
 function appendLogFile(fileName, message) {
   if (!app.isReady()) return;
@@ -96,6 +105,18 @@ function configureSessionForMicrosoftAuth(targetSession) {
 
     callback({ requestHeaders });
   });
+
+  targetSession.webRequest.onCompleted((details) => {
+    if (!isDiagnosticUrl(details.url) || details.statusCode < 400) return;
+
+    logNavigation('request', `${details.method} ${details.statusCode}`, details.url);
+  });
+
+  targetSession.webRequest.onErrorOccurred((details) => {
+    if (!isDiagnosticUrl(details.url)) return;
+
+    logNavigation('request', `${details.method} ${details.error}`, details.url);
+  });
 }
 
 function getHostname(url) {
@@ -123,6 +144,11 @@ function isMicrosoftAuthUrl(url) {
     'account.live.com',
     'account.microsoft.com',
   ].some((domain) => hostnameMatches(hostname, domain));
+}
+
+function isDiagnosticUrl(url) {
+  const hostname = getHostname(url);
+  return diagnosticHostnames.some((domain) => hostnameMatches(hostname, domain));
 }
 
 function isAllowedInAppUrl(url) {
@@ -165,7 +191,18 @@ function watchAuthWindow(authWindow, initialUrl) {
 
   authWindow.webContents.on('did-navigate', (_event, url) => handleNavigation(url, true));
   authWindow.webContents.on('did-redirect-navigation', (_event, url) => handleNavigation(url));
+  authWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame || isDiagnosticUrl(validatedURL)) {
+      logNavigation('auth-popup', `fail ${errorCode} ${errorDescription}`, validatedURL);
+    }
+  });
+  authWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level < 2) return;
+
+    logNavigation('auth-popup-console', `level ${level} line ${line}`, `${sourceId}: ${message}`);
+  });
   authWindow.webContents.on('will-navigate', (event, url) => {
+    logNavigation('auth-popup', 'will-navigate', url);
     if (isAllowedInAppUrl(url)) return;
 
     logNavigation('auth-popup', 'external', url);
@@ -173,6 +210,7 @@ function watchAuthWindow(authWindow, initialUrl) {
     shell.openExternal(url);
   });
   authWindow.webContents.setWindowOpenHandler(({ url }) => {
+    logNavigation('auth-popup', 'window-open', url);
     if (isAllowedInAppUrl(url)) return { action: 'allow' };
 
     logNavigation('auth-popup', 'external-window', url);
@@ -310,8 +348,28 @@ function createWindow() {
   win.webContents.setUserAgent(desktopUserAgent);
   win.loadURL('https://copilot.microsoft.com');
 
+  win.webContents.on('did-navigate', (_event, url) => {
+    logNavigation('main', 'did-navigate', url);
+  });
+  win.webContents.on('did-redirect-navigation', (_event, url, isInPlace, isMainFrame) => {
+    if (isMainFrame || isDiagnosticUrl(url)) {
+      logNavigation('main', isInPlace ? 'in-place-redirect' : 'redirect', url);
+    }
+  });
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame || isDiagnosticUrl(validatedURL)) {
+      logNavigation('main', `fail ${errorCode} ${errorDescription}`, validatedURL);
+    }
+  });
+  win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level < 2) return;
+
+    logNavigation('main-console', `level ${level} line ${line}`, `${sourceId}: ${message}`);
+  });
+
   // Keep Copilot sign-in inside Electron so auth cookies land in this app.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    logNavigation('main', 'window-open', url);
     if (isAllowedInAppUrl(url)) return { action: 'allow' };
 
     logNavigation('main', 'external-window', url);
@@ -325,6 +383,7 @@ function createWindow() {
 
   // Intercept standard navigation to open external links in default browser
   win.webContents.on('will-navigate', (event, url) => {
+    logNavigation('main', 'will-navigate', url);
     if (!isAllowedInAppUrl(url)) {
       logNavigation('main', 'external', url);
       event.preventDefault();
