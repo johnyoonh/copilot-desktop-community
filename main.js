@@ -25,6 +25,7 @@ if (process.defaultApp) {
 
 let win;
 const contentJs = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+const diagnosticsFiles = ['app.log', 'navigation.log'];
 
 function appendLogFile(fileName, message) {
   if (!app.isReady()) return;
@@ -46,6 +47,41 @@ function logApp(message) {
   const line = `[App] ${message}`;
   console.log(line);
   appendLogFile('app.log', line);
+}
+
+function getDiagnosticsText() {
+  if (!app.isReady()) return 'Diagnostics are not available until the app is ready.';
+
+  return diagnosticsFiles.map((fileName) => {
+    const filePath = path.join(app.getPath('userData'), fileName);
+    if (!fs.existsSync(filePath)) return `${fileName}\n(no file yet)`;
+
+    const text = fs.readFileSync(filePath, 'utf8').trim();
+    return `${fileName}\n${text || '(empty)'}`;
+  }).join('\n\n');
+}
+
+async function resetSignInData() {
+  const targetSession = session.defaultSession;
+
+  await targetSession.clearStorageData({
+    storages: [
+      'cookies',
+      'localstorage',
+      'indexdb',
+      'serviceworkers',
+      'cachestorage',
+      'websql',
+    ],
+  });
+  await targetSession.clearCache();
+
+  logApp('Cleared sign-in data');
+
+  if (win && !win.isDestroyed()) {
+    await win.loadURL('https://copilot.microsoft.com');
+    win.focus();
+  }
 }
 
 function configureSessionForMicrosoftAuth(targetSession) {
@@ -209,6 +245,36 @@ function createApplicationMenu() {
             });
           },
         },
+        {
+          label: 'Reset Sign-in Data',
+          click: async () => {
+            const result = await dialog.showMessageBox(win, {
+              type: 'warning',
+              title: 'Reset Sign-in Data',
+              message: 'Reset Copilot sign-in data?',
+              detail: 'This clears cookies and local site data for this app, then reloads Copilot.',
+              buttons: ['Reset', 'Cancel'],
+              defaultId: 0,
+              cancelId: 1,
+            });
+
+            if (result.response === 0) {
+              await resetSignInData();
+            }
+          },
+        },
+        {
+          label: 'Show Login Diagnostics',
+          click: () => {
+            dialog.showMessageBox(win, {
+              type: 'info',
+              title: 'Login Diagnostics',
+              message: 'Copilot Desktop CE Login Diagnostics',
+              detail: getDiagnosticsText(),
+              buttons: ['OK'],
+            });
+          },
+        },
       ],
     },
   ];
@@ -231,7 +297,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 900,
-    title: 'Copilot Desktop CE',
+    title: `Copilot Desktop CE ${version}`,
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
