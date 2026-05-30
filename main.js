@@ -62,6 +62,31 @@ const diagnosticHostnames = [
   'graph.microsoft.com',
   'copilot.fun',
 ];
+const sensitiveUrlParams = [
+  'code',
+  'client_info',
+  'state',
+  'nonce',
+  'epct',
+  'epctrc',
+  'uaid',
+  'username',
+  'login_hint',
+  'X-AnchorMailbox',
+];
+const authCookieHostnames = [
+  'copilot.microsoft.com',
+  'login.live.com',
+  'login.microsoft.com',
+  'login.microsoftonline.com',
+  'account.live.com',
+  'account.microsoft.com',
+  'live.com',
+  'microsoft.com',
+  'microsoftonline.com',
+];
+let authFlushTimer = null;
+let quittingAfterFlush = false;
 
 function appendLogFile(fileName, message) {
   if (!app.isReady()) return;
@@ -73,8 +98,37 @@ function appendLogFile(fileName, message) {
   );
 }
 
+function redactUrlForLog(value) {
+  if (!value || typeof value !== 'string') return value;
+
+  try {
+    const parsed = new URL(value);
+    sensitiveUrlParams.forEach((param) => {
+      if (parsed.searchParams.has(param)) {
+        parsed.searchParams.set(param, '[redacted]');
+      }
+    });
+
+    if (parsed.hash) {
+      const hashParams = new URLSearchParams(parsed.hash.slice(1));
+      let changed = false;
+      sensitiveUrlParams.forEach((param) => {
+        if (hashParams.has(param)) {
+          hashParams.set(param, '[redacted]');
+          changed = true;
+        }
+      });
+      if (changed) parsed.hash = `#${hashParams.toString()}`;
+    }
+
+    return parsed.toString();
+  } catch {
+    return value.replace(/([?&#](?:code|client_info|state|nonce|epct|epctrc|uaid|username|login_hint|X-AnchorMailbox)=)[^&#\s]+/gi, '$1[redacted]');
+  }
+}
+
 function logNavigation(scope, action, url) {
-  const message = `[Navigation:${scope}] ${action}: ${url}`;
+  const message = `[Navigation:${scope}] ${action}: ${redactUrlForLog(url)}`;
   console.log(message);
   appendLogFile('navigation.log', message);
 }
@@ -120,6 +174,23 @@ async function resetSignInData() {
   }
 }
 
+async function flushAuthState(reason) {
+  try {
+    await session.defaultSession.cookies.flushStore();
+    session.defaultSession.flushStorageData();
+    logApp(`Flushed auth state: ${reason}`);
+  } catch (err) {
+    logApp(`Failed to flush auth state (${reason}): ${err.message}`);
+  }
+}
+
+function scheduleAuthStateFlush(reason) {
+  clearTimeout(authFlushTimer);
+  authFlushTimer = setTimeout(() => {
+    flushAuthState(reason);
+  }, 1000);
+}
+
 function configureSessionForMicrosoftAuth(targetSession) {
   targetSession.setUserAgent(desktopUserAgent);
   targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
@@ -143,6 +214,15 @@ function configureSessionForMicrosoftAuth(targetSession) {
     if (!isDiagnosticUrl(details.url)) return;
 
     logNavigation('request', `${details.method} ${details.error}`, details.url);
+  });
+
+  targetSession.cookies.on('changed', (_event, cookie, _cause, removed) => {
+    if (removed) return;
+
+    const cookieDomain = (cookie.domain || '').replace(/^\./, '').toLowerCase();
+    if (!authCookieHostnames.some((domain) => hostnameMatches(cookieDomain, domain))) return;
+
+    scheduleAuthStateFlush(`cookie changed for ${cookieDomain}`);
   });
 }
 
@@ -189,6 +269,17 @@ function hostnameMatches(hostname, domain) {
 
 function isCopilotUrl(url) {
   return hostnameMatches(getHostname(url), 'copilot.microsoft.com');
+}
+
+function isCopilotAuthRedirect(url) {
+  if (!isCopilotUrl(url)) return false;
+
+  try {
+    const parsed = new URL(url);
+    return new URLSearchParams(parsed.hash.slice(1)).has('code');
+  } catch {
+    return false;
+  }
 }
 
 function shouldInjectContent(url) {
@@ -460,6 +551,14 @@ app.on('open-url', (event, url) => {
   }
 });
 
+app.on('before-quit', (event) => {
+  if (quittingAfterFlush) return;
+
+  event.preventDefault();
+  quittingAfterFlush = true;
+  flushAuthState('before quit').finally(() => app.quit());
+});
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1200,
@@ -479,6 +578,9 @@ function createWindow() {
 
   win.webContents.on('did-navigate', (_event, url) => {
     logNavigation('main', 'did-navigate', url);
+    if (isCopilotAuthRedirect(url)) {
+      scheduleAuthStateFlush('copilot auth redirect');
+    }
   });
   win.webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
     if (isMainFrame || isDiagnosticUrl(url)) {
