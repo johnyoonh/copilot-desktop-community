@@ -226,6 +226,60 @@ function reloadMainWindowAfterAuth(authWindow) {
   }
 }
 
+async function signInFromFrame(frame) {
+  const code = `
+    (() => {
+      const visible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      const textFor = (el) => [
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+        el.innerText,
+        el.textContent,
+        el.value,
+      ].find((value) => value && value.trim())?.trim().replace(/\\s+/g, ' ') || '';
+      const candidates = Array.from(document.querySelectorAll('a, button, [role="button"], input[type="button"], input[type="submit"]'))
+        .filter(visible)
+        .map((el) => ({ el, text: textFor(el), href: el.href || '' }))
+        .filter((item) => /sign\\s*in|log\\s*in|continue/i.test(item.text) || /login|signin|sign-in/i.test(item.href));
+      const match = candidates[0];
+      if (!match) {
+        return { clicked: false, url: window.location.href, candidates: candidates.map((item) => ({ text: item.text, href: item.href })).slice(0, 10) };
+      }
+      match.el.focus();
+      match.el.click();
+      return { clicked: true, url: window.location.href, text: match.text, href: match.href };
+    })();
+  `;
+
+  try {
+    return await frame.executeJavaScript(code, true);
+  } catch (err) {
+    return { clicked: false, url: frame.url, error: err.message };
+  }
+}
+
+async function triggerCopilotSignIn() {
+  if (!win || win.isDestroyed()) return;
+
+  const frames = win.webContents.mainFrame.framesInSubtree
+    .filter((frame) => !frame.isDestroyed() && shouldInjectContent(frame.url));
+
+  logNavigation('sign-in-command', 'frames', JSON.stringify(frames.map((frame) => frame.url)));
+
+  for (const frame of frames) {
+    const result = await signInFromFrame(frame);
+    logNavigation('sign-in-command', 'result', JSON.stringify(result));
+    if (result.clicked) return;
+  }
+
+  logNavigation('sign-in-command', 'fallback', 'https://copilot.microsoft.com/');
+  win.loadURL('https://copilot.microsoft.com/');
+}
+
 function watchAuthWindow(authWindow, initialUrl) {
   let sawAuthNavigation = isMicrosoftAuthUrl(initialUrl);
   logNavigation('auth-popup', 'created', initialUrl);
@@ -358,6 +412,14 @@ function createApplicationMenu() {
             if (result.response === 0) {
               await resetSignInData();
             }
+          },
+        },
+        {
+          label: 'Sign In',
+          click: () => {
+            triggerCopilotSignIn().catch((err) => {
+              logNavigation('sign-in-command', 'error', err.message);
+            });
           },
         },
         {
