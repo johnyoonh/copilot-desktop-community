@@ -52,6 +52,7 @@ const diagnosticHostnames = [
   'account.live.com',
   'account.microsoft.com',
   'graph.microsoft.com',
+  'copilot.fun',
 ];
 
 function appendLogFile(fileName, message) {
@@ -180,6 +181,12 @@ function hostnameMatches(hostname, domain) {
 
 function isCopilotUrl(url) {
   return hostnameMatches(getHostname(url), 'copilot.microsoft.com');
+}
+
+function shouldInjectContent(url) {
+  const hostname = getHostname(url);
+  return hostnameMatches(hostname, 'copilot.microsoft.com') ||
+    hostnameMatches(hostname, 'copilot.fun');
 }
 
 function isMicrosoftAuthUrl(url) {
@@ -501,7 +508,11 @@ function createWindow() {
   // Inject into every frame as it finishes loading
   win.webContents.on('did-frame-finish-load', (event, isMainFrame, frameProcessId, frameRoutingId) => {
     const frame = webFrameMain.fromId(frameProcessId, frameRoutingId);
-    if (frame && isCopilotUrl(frame.url)) {
+    if (frame) {
+      logNavigation('frame', isMainFrame ? 'main-load' : 'subframe-load', frame.url);
+    }
+
+    if (frame && shouldInjectContent(frame.url)) {
       console.log(`[Main] Injecting JS into frame: ${frame.url}`);
       frame.executeJavaScript(contentJs).catch(err => {
         console.error(`[Main] Failed to inject JS into frame ${frame.url}:`, err);

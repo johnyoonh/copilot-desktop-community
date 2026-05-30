@@ -12,6 +12,27 @@ console.log(
   "color: #78D4; font-weight: bold; font-size: 14px;"
 );
 
+document.addEventListener('click', (event) => {
+  const target = event.target?.closest?.('a, button, [role="button"], input[type="button"], input[type="submit"]');
+  if (!target) return;
+
+  const label = [
+    target.getAttribute?.('aria-label'),
+    target.getAttribute?.('title'),
+    target.innerText,
+    target.textContent,
+    target.value,
+  ].find((value) => value && value.trim())?.trim().replace(/\s+/g, ' ').slice(0, 160);
+
+  console.info('[Copilot Login Diagnostic] click', JSON.stringify({
+    url: window.location.href,
+    tag: target.tagName,
+    role: target.getAttribute?.('role'),
+    label,
+    href: target.href,
+  }));
+}, true);
+
 function triggerElement(el, isInput) {
   if (!el) return;
   try {
