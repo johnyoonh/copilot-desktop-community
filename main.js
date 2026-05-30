@@ -1,11 +1,18 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { version } = require('./package.json');
 
+const desktopUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+const desktopUserAgentClientHints = {
+  'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+};
+
 // Set the name before app is ready for better Dock/Taskbar display in dev
 app.setName('Copilot Desktop CE');
-app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/\S+/, '');
+app.userAgentFallback = desktopUserAgent;
 
 // Register URL scheme for deep linking
 if (process.defaultApp) {
@@ -19,17 +26,40 @@ if (process.defaultApp) {
 let win;
 const contentJs = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
+function appendLogFile(fileName, message) {
+  if (!app.isReady()) return;
+
+  fs.appendFile(
+    path.join(app.getPath('userData'), fileName),
+    `${new Date().toISOString()} ${message}\n`,
+    () => {}
+  );
+}
+
 function logNavigation(scope, action, url) {
   const message = `[Navigation:${scope}] ${action}: ${url}`;
   console.log(message);
+  appendLogFile('navigation.log', message);
+}
 
-  if (app.isReady()) {
-    fs.appendFile(
-      path.join(app.getPath('userData'), 'navigation.log'),
-      `${new Date().toISOString()} ${message}\n`,
-      () => {}
-    );
-  }
+function logApp(message) {
+  const line = `[App] ${message}`;
+  console.log(line);
+  appendLogFile('app.log', line);
+}
+
+function configureSessionForMicrosoftAuth(targetSession) {
+  targetSession.setUserAgent(desktopUserAgent);
+  targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const requestHeaders = { ...details.requestHeaders };
+
+    requestHeaders['User-Agent'] = desktopUserAgent;
+    Object.entries(desktopUserAgentClientHints).forEach(([name, value]) => {
+      requestHeaders[name] = value;
+    });
+
+    callback({ requestHeaders });
+  });
 }
 
 function getHostname(url) {
@@ -83,6 +113,7 @@ function reloadMainWindowAfterAuth(authWindow) {
 function watchAuthWindow(authWindow, initialUrl) {
   let sawAuthNavigation = isMicrosoftAuthUrl(initialUrl);
   logNavigation('auth-popup', 'created', initialUrl);
+  authWindow.webContents.setUserAgent(desktopUserAgent);
 
   const handleNavigation = (url, canCompleteAuth = false) => {
     logNavigation('auth-popup', canCompleteAuth ? 'did-navigate' : 'redirect', url);
@@ -210,6 +241,7 @@ function createWindow() {
     },
   });
 
+  win.webContents.setUserAgent(desktopUserAgent);
   win.loadURL('https://copilot.microsoft.com');
 
   // Keep Copilot sign-in inside Electron so auth cookies land in this app.
@@ -365,6 +397,9 @@ ipcMain.on('stop-find', () => {
 });
 
 app.whenReady().then(() => {
+  configureSessionForMicrosoftAuth(session.defaultSession);
+  logApp(`Starting Copilot Desktop CE ${version}`);
+  logApp(`Using user agent: ${desktopUserAgent}`);
   createApplicationMenu();
   createWindow();
 
