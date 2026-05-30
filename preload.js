@@ -24,4 +24,36 @@ contextBridge.exposeInMainWorld('electronSearch', {
   log: (msg) => ipcRenderer.send('log-to-terminal', msg)
 });
 
+window.addEventListener('click', (event) => {
+  const target = event.target?.closest?.('a, button, [role="button"], input[type="button"], input[type="submit"]');
+  if (!target) return;
+
+  const label = [
+    target.getAttribute?.('aria-label'),
+    target.getAttribute?.('title'),
+    target.innerText,
+    target.textContent,
+    target.value,
+  ].find((value) => value && value.trim())?.trim().replace(/\s+/g, ' ').slice(0, 160);
+
+  ipcRenderer.send('renderer-diagnostic', {
+    type: 'click',
+    url: window.location.href,
+    tag: target.tagName,
+    role: target.getAttribute?.('role'),
+    label,
+    href: target.href,
+  });
+}, true);
+
+window.addEventListener('submit', (event) => {
+  const form = event.target;
+  ipcRenderer.send('renderer-diagnostic', {
+    type: 'submit',
+    url: window.location.href,
+    action: form?.action,
+    method: form?.method,
+  });
+}, true);
+
 console.log('[Copilot Desktop] Context Bridge initialized');

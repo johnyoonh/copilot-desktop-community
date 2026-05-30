@@ -238,6 +238,11 @@ function watchAuthWindow(authWindow, initialUrl) {
 
   authWindow.webContents.on('did-navigate', (_event, url) => handleNavigation(url, true));
   authWindow.webContents.on('did-redirect-navigation', (_event, url) => handleNavigation(url));
+  authWindow.webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
+    if (isMainFrame || isDiagnosticUrl(url)) {
+      logNavigation('auth-popup', isInPlace ? 'start-in-place' : 'start-navigation', url);
+    }
+  });
   authWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (isMainFrame || isDiagnosticUrl(validatedURL)) {
       logNavigation('auth-popup', `fail ${errorCode} ${errorDescription}`, validatedURL);
@@ -397,6 +402,11 @@ function createWindow() {
 
   win.webContents.on('did-navigate', (_event, url) => {
     logNavigation('main', 'did-navigate', url);
+  });
+  win.webContents.on('did-start-navigation', (_event, url, isInPlace, isMainFrame) => {
+    if (isMainFrame || isDiagnosticUrl(url)) {
+      logNavigation('main', isInPlace ? 'start-in-place' : 'start-navigation', url);
+    }
   });
   win.webContents.on('did-redirect-navigation', (_event, url, isInPlace, isMainFrame) => {
     if (isMainFrame || isDiagnosticUrl(url)) {
@@ -566,6 +576,14 @@ ipcMain.on('stop-find', () => {
     console.log('[Main] Search stopped');
     win.webContents.stopFindInPage('clearSelection');
   }
+});
+
+ipcMain.on('log-to-terminal', (_event, message) => {
+  logNavigation('renderer-log', 'message', String(message));
+});
+
+ipcMain.on('renderer-diagnostic', (_event, data) => {
+  logNavigation('renderer', data?.type || 'event', JSON.stringify(data));
 });
 
 app.whenReady().then(() => {
