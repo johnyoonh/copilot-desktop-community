@@ -1,7 +1,7 @@
 {
   "name": "copilot-desktop-community",
   "productName": "Copilot Desktop CE",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A standalone, community-driven desktop client for Microsoft Copilot, designed for a more integrated and flexible user experience.",
   "main": "main.js",
   "scripts": {

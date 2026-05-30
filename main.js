@@ -1,6 +1,7 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, webFrameMain, shell, Menu, MenuItem, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { version } = require('./package.json');
 
 // Set the name before app is ready for better Dock/Taskbar display in dev
 app.setName('Copilot Desktop CE');
@@ -126,6 +127,62 @@ function handleDeepLink(url) {
   } catch (err) {
     console.error('[Main] Failed to parse deep link URL:', err);
   }
+}
+
+function createApplicationMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { role: 'close' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: `About Copilot Desktop CE ${version}`,
+          click: () => {
+            dialog.showMessageBox(win, {
+              type: 'info',
+              title: 'About Copilot Desktop CE',
+              message: 'Copilot Desktop CE',
+              detail: `Version ${version}`,
+              buttons: ['OK'],
+            });
+          },
+        },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 app.on('open-url', (event, url) => {
@@ -308,6 +365,7 @@ ipcMain.on('stop-find', () => {
 });
 
 app.whenReady().then(() => {
+  createApplicationMenu();
   createWindow();
 
   // Listen for results globally
