@@ -2,10 +2,36 @@
 //  Copilot Shortcuts — Cmd/Ctrl edition
 // =============================================================
 
+if (window.__copilotDesktopShortcutsLoaded) {
+  console.log("[Copilot Shortcuts] Already loaded, skipping duplicate injection");
+} else {
+window.__copilotDesktopShortcutsLoaded = true;
+
 console.log(
   "%c[Copilot Shortcuts] Loaded — listening for Cmd/Ctrl+Key combos",
   "color: #78D4; font-weight: bold; font-size: 14px;"
 );
+
+document.addEventListener('click', (event) => {
+  const target = event.target?.closest?.('a, button, [role="button"], input[type="button"], input[type="submit"]');
+  if (!target) return;
+
+  const label = [
+    target.getAttribute?.('aria-label'),
+    target.getAttribute?.('title'),
+    target.innerText,
+    target.textContent,
+    target.value,
+  ].find((value) => value && value.trim())?.trim().replace(/\s+/g, ' ').slice(0, 160);
+
+  console.info('[Copilot Login Diagnostic] click', JSON.stringify({
+    url: window.location.href,
+    tag: target.tagName,
+    role: target.getAttribute?.('role'),
+    label,
+    href: target.href,
+  }));
+}, true);
 
 function triggerElement(el, isInput) {
   if (!el) return;
@@ -46,6 +72,121 @@ const SHORTCUTS = {
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
   Period: { selector: '[aria-label="Close sidebar"], [aria-label="Open sidebar"], [aria-label="Open sidebar!"]' }
 };
+
+const MODE_STORAGE_KEY = 'copilot-desktop:last-chat-mode';
+const MODE_MENU_BUTTON_SELECTOR = '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]';
+const MODE_OPTION_SELECTOR = '#composer-dropdown-button-menu-contents button, #task-chat-mode-dropdown-menu button, [data-testid="task-chat-mode-dropdown-menu-contents"] button, [role="radiogroup"] [role="radio"], [role="menuitemradio"], [role="option"]';
+let modeRestoreInProgress = false;
+let lastModeRestoreValue = null;
+
+function isVisible(el) {
+  const rect = el?.getBoundingClientRect?.();
+  return !!rect && rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).visibility !== 'hidden' && window.getComputedStyle(el).display !== 'none';
+}
+
+function elementText(el) {
+  return [
+    el?.getAttribute?.('aria-label'),
+    el?.getAttribute?.('title'),
+    el?.innerText,
+    el?.textContent,
+    el?.value,
+  ].find((value) => value && value.trim())?.trim().replace(/\s+/g, ' ') || '';
+}
+
+function normalizeModeLabel(text) {
+  return (text || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function readStoredMode() {
+  const raw = localStorage.getItem(MODE_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.normalized) return parsed;
+  } catch {}
+
+  return { label: raw, normalized: normalizeModeLabel(raw) };
+}
+
+function isSelectedModeControl(el) {
+  return el?.getAttribute?.('aria-checked') === 'true' ||
+    el?.getAttribute?.('aria-selected') === 'true' ||
+    el?.getAttribute?.('data-state') === 'checked' ||
+    el?.getAttribute?.('data-selected') === 'true';
+}
+
+function modeOptions() {
+  return Array.from(document.querySelectorAll(MODE_OPTION_SELECTOR))
+    .filter(isVisible)
+    .map((el) => {
+      const text = elementText(el);
+      return { el, text, normalized: normalizeModeLabel(text) };
+    })
+    .filter((item) => item.normalized);
+}
+
+function rememberModeFromElement(el) {
+  const label = elementText(el);
+  const normalized = normalizeModeLabel(label);
+  if (!normalized) return;
+
+  localStorage.setItem(MODE_STORAGE_KEY, JSON.stringify({ label, normalized }));
+  lastModeRestoreValue = normalized;
+  console.info('[Copilot Mode Persistence] saved', label);
+}
+
+function currentModeValue() {
+  const selectedOption = modeOptions().find((item) => isSelectedModeControl(item.el));
+  if (selectedOption) return selectedOption.normalized;
+
+  const menuButton = document.querySelector(MODE_MENU_BUTTON_SELECTOR);
+  return normalizeModeLabel(elementText(menuButton));
+}
+
+function clickStoredModeIfVisible(storedMode) {
+  const match = modeOptions().find((item) => item.normalized === storedMode.normalized);
+  if (!match) return false;
+
+  if (isSelectedModeControl(match.el)) return true;
+  match.el.click();
+  console.info('[Copilot Mode Persistence] restored', match.text);
+  return true;
+}
+
+function restoreStoredMode() {
+  if (modeRestoreInProgress) return;
+  const storedMode = readStoredMode();
+  if (!storedMode?.normalized) return;
+  if (currentModeValue() === storedMode.normalized) return;
+
+  modeRestoreInProgress = true;
+  try {
+    if (clickStoredModeIfVisible(storedMode)) return;
+
+    const menuButton = document.querySelector(MODE_MENU_BUTTON_SELECTOR);
+    if (!isVisible(menuButton)) return;
+
+    menuButton.click();
+    setTimeout(() => {
+      clickStoredModeIfVisible(storedMode);
+      modeRestoreInProgress = false;
+    }, 250);
+    return;
+  } finally {
+    if (!document.querySelector('#composer-dropdown-button-menu-contents, #task-chat-mode-dropdown-menu, [data-testid="task-chat-mode-dropdown-menu-contents"]')) {
+      modeRestoreInProgress = false;
+    }
+  }
+}
+
+function scheduleModeRestore() {
+  [800, 2000, 5000].forEach((delay) => setTimeout(restoreStoredMode, delay));
+}
 
 let lastEnterTime = 0;
 let cmdPressTimeout = null;
@@ -286,6 +427,20 @@ const handler = (e) => {
 };
 
 document.addEventListener("keydown", handler, true);
+
+document.addEventListener('click', (event) => {
+  const modeControl = event.target?.closest?.(MODE_OPTION_SELECTOR);
+  if (modeControl) rememberModeFromElement(modeControl);
+}, true);
+
+scheduleModeRestore();
+new MutationObserver(() => {
+  const storedMode = readStoredMode();
+  if (storedMode?.normalized && storedMode.normalized !== lastModeRestoreValue) {
+    lastModeRestoreValue = storedMode.normalized;
+    setTimeout(restoreStoredMode, 250);
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
 
 // Iframe injection handled by main process
 window.addEventListener('copilot-shortcut', (e) => {
@@ -705,3 +860,4 @@ setInterval(() => {
 
   window.addEventListener('show-mic-diagnostics', showBanner);
 })();
+}
