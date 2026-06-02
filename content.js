@@ -40,6 +40,7 @@ const SHORTCUTS = {
   KeyM: { selector: '[data-testid="composer-chat-mode-reasoning-button"], [data-testid="composer-chat-mode-smart-button"], [data-testid="task-chat-mode-dropdown-button"]' },
   KeyE: { selector: '[data-testid="composer-create-button"]', isInput: true },
   KeyU: { selector: '[aria-label="Talk to Copilot"], [data-testid="audio-call-button"]' },
+  StopTalking: { selector: '[aria-label="Stop talking"]' },
   KeyX: { selector: '[title="Invite"]' },
   KeyK: { selector: '[aria-label="Search chats"], [aria-label="Search"], [data-testid="search-button"]', isInput: true },
   Comma: { selector: '[aria-label="Settings"], [data-testid="sidebar-settings-button"]' },
@@ -509,6 +510,7 @@ setInterval(() => {
       { key: 'Cmd + B', desc: 'Labs' },
       { key: 'Cmd + M', desc: 'Switch Chat Mode' },
       { key: 'Cmd + U', desc: 'Voice / Talk' },
+      { key: 'Cmd + Shift + U', desc: 'Stop Voice / Talk' },
       { key: 'Cmd + X', desc: 'Invite' },
       { key: 'Cmd + E', desc: 'Attach / Create' },
       { key: 'Cmd + K', desc: 'Search Chats' },
@@ -640,4 +642,66 @@ setInterval(() => {
     if (modal && modal.style.display === 'flex') hideModal();
     else showModal();
   });
+})();
+
+// =============================================================
+//  Microphone diagnostics banner (Cmd+Shift+D)
+// =============================================================
+(function initMicDiagnostics() {
+  if (window.self !== window.top) return;
+
+  async function showBanner() {
+    const existing = document.getElementById('copilot-mic-diag');
+    if (existing) existing.remove();
+
+    const diag = await window.electronMic?.getDiagnostics?.();
+    const probe = await window.electronMic?.probe?.();
+
+    const banner = document.createElement('div');
+    banner.id = 'copilot-mic-diag';
+    banner.style.cssText = `
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,20,20,0.95); color: #fff; border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px; padding: 16px 20px; z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px; line-height: 1.5; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      max-width: 560px; min-width: 420px;
+    `;
+
+    const probeLine = probe?.ok
+      ? '<span style="color:#5dd85d">getUserMedia OK — audio track obtained</span>'
+      : `<span style="color:#ff6b6b">getUserMedia failed: ${probe?.name || 'Unknown'} — ${probe?.message || ''}</span>`;
+
+    const micStatusColor = diag?.micStatus === 'granted' ? '#5dd85d'
+      : diag?.micStatus === 'denied' ? '#ff6b6b' : '#ffcb6b';
+
+    banner.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <strong style="font-size:14px;">Microphone diagnostics</strong>
+        <button id="copilot-mic-diag-close" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;">
+        <div>App: ${diag?.appName} v${diag?.version} (Electron ${diag?.electronVersion})</div>
+        <div>Binary: ${diag?.execPath}</div>
+        <div>macOS mic status: <span style="color:${micStatusColor}">${diag?.micStatus}</span></div>
+        <div>Probe: ${probeLine}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="copilot-mic-diag-open" style="background:#4c9aff;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;">Open System Settings → Microphone</button>
+        <button id="copilot-mic-diag-reprobe" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;">Re-probe</button>
+      </div>
+      <div style="margin-top:10px;color:#aaa;font-size:11px;">
+        If status is "denied", macOS is blocking audio — toggle this app in System Settings, fully quit, and relaunch.
+        If status is "granted" but probe fails, Electron's permission handler is the issue.
+      </div>
+    `;
+
+    document.body.appendChild(banner);
+
+    banner.querySelector('#copilot-mic-diag-close').onclick = () => banner.remove();
+    banner.querySelector('#copilot-mic-diag-open').onclick = () => window.electronMic?.openSystemSettings?.();
+    banner.querySelector('#copilot-mic-diag-reprobe').onclick = () => showBanner();
+  }
+
+  window.addEventListener('show-mic-diagnostics', showBanner);
 })();

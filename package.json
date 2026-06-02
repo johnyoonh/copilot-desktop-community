@@ -21,7 +21,14 @@
     "appId": "com.user.copilot-desktop",
     "mac": {
       "icon": "icon.png",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Copilot Desktop CE uses your microphone for voice conversations with Copilot.",
+        "NSCameraUsageDescription": "Copilot Desktop CE may use your camera for video features in Copilot."
+      }
     },
     "protocols": {
       "name": "Copilot Protocol",
