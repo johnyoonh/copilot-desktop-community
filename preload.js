@@ -23,7 +23,7 @@ ipcRenderer.on('show-mic-diagnostics', () => {
 
 // Securely expose the API to the page
 contextBridge.exposeInMainWorld('electronSearch', {
-  find: (text, forward = true, findNext = true) => ipcRenderer.send('find-in-page', text, { forward, findNext }),
+  find: (text, forward = true, findNext = true) => ipcRenderer.invoke('find-in-page', text, { forward, findNext }),
   stop: () => ipcRenderer.send('stop-find'),
   log: (msg) => ipcRenderer.send('log-to-terminal', msg)
 });

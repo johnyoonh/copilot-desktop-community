@@ -542,53 +542,128 @@ setInterval(() => {
     findBar.appendChild(closeBtn);
     document.body.appendChild(findBar);
 
-    function hideFindBar() {
-        findBar.style.display = 'none';
-        window.electronSearch?.stop();
+    let searchTimeout = null;
+    let restoreFocusTimer = null;
+    let findBarVisible = false;
+    let nativeFindRequestActive = false;
+    let lastSearchText = '';
+
+    function focusFindInput() {
+      if (!findBarVisible || !findInput) return;
+      findInput.focus({ preventScroll: true });
     }
 
-    let searchTimeout = null;
+    function restoreFindBarAndFocus(delay = 80) {
+      clearTimeout(restoreFocusTimer);
+      restoreFocusTimer = setTimeout(() => {
+        if (!findBarVisible || !findBar || !findInput) return;
+        findBar.style.display = 'flex';
+        focusFindInput();
+      }, delay);
+    }
+
+    function hideFindBar() {
+      clearTimeout(searchTimeout);
+      clearTimeout(restoreFocusTimer);
+      findBarVisible = false;
+      lastSearchText = '';
+      findBar.style.display = 'none';
+      window.electronSearch?.stop();
+    }
+
+    async function runSearch({ forward = true, findNext = false, restoreDelay = 80 } = {}) {
+      clearTimeout(searchTimeout);
+
+      const text = findInput.value;
+      if (text.length < 2) {
+        lastSearchText = '';
+        findResultsCount.textContent = '0/0';
+        window.electronSearch?.stop();
+        focusFindInput();
+        return;
+      }
+
+      const shouldFindNext = findNext && text === lastSearchText;
+      const selectionStart = findInput.selectionStart;
+      const selectionEnd = findInput.selectionEnd;
+      lastSearchText = text;
+
+      // Native find starts from the focused element. Hide/blur our in-page find
+      // controls for the request so Enter/Shift+Enter continue from the active
+      // page match instead of looping through the find input itself.
+      if (findBarVisible) {
+        nativeFindRequestActive = true;
+        findInput.blur();
+        findBar.style.display = 'none';
+      }
+
+      try {
+        await window.electronSearch?.find(text, forward, shouldFindNext);
+      } finally {
+        nativeFindRequestActive = false;
+        if (findBarVisible) {
+          restoreFindBarAndFocus(restoreDelay);
+          try {
+            findInput.setSelectionRange(selectionStart, selectionEnd);
+          } catch {}
+        }
+      }
+    }
+
     findInput.addEventListener('input', () => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
-        const text = findInput.value;
-        if (text.length >= 2) {
-          window.electronSearch?.find(text, true, false);
-        } else {
-          findResultsCount.textContent = '0/0';
-          window.electronSearch?.stop();
-        }
-      }, 500);
+        runSearch({ forward: true, findNext: false, restoreDelay: 0 });
+      }, 350);
     });
 
-    nextBtn.onclick = () => { if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, true, true); };
-    prevBtn.onclick = () => { if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, false, true); };
+    [prevBtn, nextBtn, closeBtn].forEach((button) => {
+      button.type = 'button';
+      button.addEventListener('mousedown', (e) => e.preventDefault());
+    });
+
+    nextBtn.onclick = () => runSearch({ forward: true, findNext: true });
+    prevBtn.onclick = () => runSearch({ forward: false, findNext: true });
 
     findInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        if (findInput.value.length >= 2) window.electronSearch?.find(findInput.value, !e.shiftKey, true);
+        e.preventDefault();
+        e.stopPropagation();
+        runSearch({ forward: !e.shiftKey, findNext: true });
       } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         hideFindBar();
       }
     });
 
+    findInput.addEventListener('blur', () => {
+      if (!findBarVisible || nativeFindRequestActive) return;
+      restoreFindBarAndFocus();
+    });
+
     closeBtn.onclick = hideFindBar;
+
+    findBar._restoreFindBarAndFocus = restoreFindBarAndFocus;
+    findBar._show = () => {
+      findBarVisible = true;
+      findBar.style.display = 'flex';
+      focusFindInput();
+      findInput.select();
+    };
   }
 
   window.addEventListener('show-find-bar', () => {
     createFindBar();
-    findBar.style.display = 'flex';
-    findInput.focus();
-    findInput.select();
+    findBar._show();
   });
 
   window.addEventListener('find-results', (e) => {
     if (findResultsCount) {
         findResultsCount.textContent = `${e.detail.activeMatchOrdinal}/${e.detail.matches}`;
     }
-    // ensure search bar retains focus so user can keep typing
-    if (findInput && findBar?.style?.display === 'flex' && document.activeElement !== findInput) {
-        findInput.focus();
+    if (e.detail.finalUpdate && findInput && document.activeElement !== findInput) {
+      findBar?._restoreFindBarAndFocus?.();
     }
   });
 })();

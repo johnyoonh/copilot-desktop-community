@@ -766,11 +766,20 @@ function createWindow() {
     }
   });
 }
-ipcMain.on('find-in-page', (event, text, options) => {
-  if (win && win.webContents) {
-    console.log(`[Main] Search requested for: "${text}" with options:`, options);
-    win.webContents.findInPage(text, options || {});
-  }
+ipcMain.handle('find-in-page', (_event, text, options = {}) => {
+  if (!win || win.isDestroyed() || !win.webContents) return null;
+
+  const query = String(text || '');
+  if (!query) return null;
+
+  const findOptions = {
+    forward: options.forward !== false,
+    findNext: options.findNext === true,
+    matchCase: options.matchCase === true,
+  };
+
+  console.log(`[Main] Search requested for: "${query}" with options:`, findOptions);
+  return win.webContents.findInPage(query, findOptions);
 });
 
 ipcMain.on('stop-find', () => {
@@ -919,7 +928,10 @@ app.whenReady().then(async () => {
     // Send to renderer regardless of finalUpdate so the UI feels responsive
     win.webContents.send('find-results', {
       activeMatchOrdinal: result.activeMatchOrdinal,
-      matches: result.matches
+      matches: result.matches,
+      finalUpdate: result.finalUpdate,
+      requestId: result.requestId,
+      selectionArea: result.selectionArea,
     });
   });
 
