@@ -542,10 +542,26 @@ setInterval(() => {
     findBar.appendChild(closeBtn);
     document.body.appendChild(findBar);
 
+    const highlightStyle = document.createElement('style');
+    highlightStyle.textContent = `
+      mark.copilot-find-highlight {
+        background: #fff176 !important;
+        color: inherit !important;
+        border-radius: 2px !important;
+        padding: 0 1px !important;
+      }
+      mark.copilot-find-highlight-active {
+        background: #ff9800 !important;
+        color: #111 !important;
+        outline: 2px solid #d35f00 !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(highlightStyle);
+
     let searchTimeout = null;
-    let restoreFocusTimer = null;
     let findBarVisible = false;
-    let nativeFindRequestActive = false;
+    let highlightedMatches = [];
+    let activeMatchIndex = -1;
     let lastSearchText = '';
 
     function focusFindInput() {
@@ -553,67 +569,199 @@ setInterval(() => {
       findInput.focus({ preventScroll: true });
     }
 
-    function restoreFindBarAndFocus(delay = 80) {
-      clearTimeout(restoreFocusTimer);
-      restoreFocusTimer = setTimeout(() => {
-        if (!findBarVisible || !findBar || !findInput) return;
-        findBar.style.display = 'flex';
-        focusFindInput();
-      }, delay);
+    function restoreFindInputFocus() {
+      focusFindInput();
+      requestAnimationFrame(focusFindInput);
+      [50, 150, 300].forEach((delay) => setTimeout(focusFindInput, delay));
+    }
+
+    function consumeFindEvent(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+    }
+
+    function jumpToMatch(match) {
+      const scrollRoots = [document.documentElement, document.body].filter(Boolean);
+      const previousScrollBehavior = scrollRoots.map((el) => [el, el.style.scrollBehavior]);
+
+      scrollRoots.forEach((el) => {
+        el.style.scrollBehavior = 'auto';
+      });
+
+      try {
+        match.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+      } catch {
+        match.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+      } finally {
+        requestAnimationFrame(() => {
+          previousScrollBehavior.forEach(([el, value]) => {
+            el.style.scrollBehavior = value;
+          });
+        });
+      }
     }
 
     function hideFindBar() {
       clearTimeout(searchTimeout);
-      clearTimeout(restoreFocusTimer);
       findBarVisible = false;
       lastSearchText = '';
+      clearHighlights();
       findBar.style.display = 'none';
       window.electronSearch?.stop();
     }
 
-    async function runSearch({ forward = true, findNext = false, restoreDelay = 80 } = {}) {
+    function isSearchableTextNode(node) {
+      if (!node.nodeValue?.trim()) return false;
+
+      let el = node.parentElement;
+      while (el) {
+        if (el === findBar || el.closest?.('#electron-find-bar')) return false;
+        if (el.closest?.('[aria-label="Sidebar"], nav, aside')) return false;
+        if (el.classList?.contains('copilot-find-highlight')) return false;
+
+        const tag = el.tagName?.toLowerCase();
+        if (['script', 'style', 'noscript', 'textarea', 'input', 'select', 'option'].includes(tag)) {
+          return false;
+        }
+        if (el.isContentEditable || el.getAttribute?.('aria-hidden') === 'true') return false;
+
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return false;
+
+        el = el.parentElement;
+      }
+
+      return true;
+    }
+
+    function collectTextNodes() {
+      const nodes = [];
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) => isSearchableTextNode(node)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT,
+        }
+      );
+
+      while (walker.nextNode()) {
+        nodes.push(walker.currentNode);
+      }
+
+      return nodes;
+    }
+
+    function clearHighlights() {
+      const marks = highlightedMatches.length
+        ? [...highlightedMatches]
+        : Array.from(document.querySelectorAll('mark.copilot-find-highlight'));
+
+      marks.forEach((mark) => {
+        const parent = mark.parentNode;
+        if (!parent) return;
+        parent.replaceChild(document.createTextNode(mark.textContent || ''), mark);
+        parent.normalize();
+      });
+
+      highlightedMatches = [];
+      activeMatchIndex = -1;
+      findResultsCount.textContent = '0/0';
+    }
+
+    function createHighlight(text) {
+      const mark = document.createElement('mark');
+      mark.className = 'copilot-find-highlight';
+      mark.textContent = text;
+      return mark;
+    }
+
+    function highlightMatches(query) {
+      clearHighlights();
+
+      const normalizedQuery = query.toLocaleLowerCase();
+      collectTextNodes().forEach((node) => {
+        const text = node.nodeValue;
+        const normalizedText = text.toLocaleLowerCase();
+        let index = normalizedText.indexOf(normalizedQuery);
+        if (index === -1) return;
+
+        const fragment = document.createDocumentFragment();
+        let cursor = 0;
+
+        while (index !== -1) {
+          if (index > cursor) {
+            fragment.appendChild(document.createTextNode(text.slice(cursor, index)));
+          }
+
+          const matchText = text.slice(index, index + query.length);
+          const mark = createHighlight(matchText);
+          fragment.appendChild(mark);
+          highlightedMatches.push(mark);
+
+          cursor = index + query.length;
+          index = normalizedText.indexOf(normalizedQuery, cursor);
+        }
+
+        if (cursor < text.length) {
+          fragment.appendChild(document.createTextNode(text.slice(cursor)));
+        }
+
+        node.parentNode.replaceChild(fragment, node);
+      });
+    }
+
+    function setActiveMatch(index) {
+      if (!highlightedMatches.length) {
+        activeMatchIndex = -1;
+        findResultsCount.textContent = '0/0';
+        focusFindInput();
+        return;
+      }
+
+      highlightedMatches[activeMatchIndex]?.classList.remove('copilot-find-highlight-active');
+
+      activeMatchIndex = (index + highlightedMatches.length) % highlightedMatches.length;
+      const activeMatch = highlightedMatches[activeMatchIndex];
+      activeMatch.classList.add('copilot-find-highlight-active');
+      findResultsCount.textContent = `${activeMatchIndex + 1}/${highlightedMatches.length}`;
+      jumpToMatch(activeMatch);
+      restoreFindInputFocus();
+    }
+
+    function runSearch({ forward = true, findNext = false } = {}) {
       clearTimeout(searchTimeout);
 
       const text = findInput.value;
       if (text.length < 2) {
         lastSearchText = '';
-        findResultsCount.textContent = '0/0';
+        clearHighlights();
         window.electronSearch?.stop();
         focusFindInput();
         return;
       }
 
-      const shouldFindNext = findNext && text === lastSearchText;
-      const selectionStart = findInput.selectionStart;
-      const selectionEnd = findInput.selectionEnd;
-      lastSearchText = text;
-
-      // Native find starts from the focused element. Hide/blur our in-page find
-      // controls for the request so Enter/Shift+Enter continue from the active
-      // page match instead of looping through the find input itself.
-      if (findBarVisible) {
-        nativeFindRequestActive = true;
-        findInput.blur();
-        findBar.style.display = 'none';
+      if (text !== lastSearchText) {
+        lastSearchText = text;
+        highlightMatches(text);
+        setActiveMatch(0);
+        return;
       }
 
-      try {
-        await window.electronSearch?.find(text, forward, shouldFindNext);
-      } finally {
-        nativeFindRequestActive = false;
-        if (findBarVisible) {
-          restoreFindBarAndFocus(restoreDelay);
-          try {
-            findInput.setSelectionRange(selectionStart, selectionEnd);
-          } catch {}
-        }
+      if (findNext) {
+        setActiveMatch(activeMatchIndex + (forward ? 1 : -1));
+        return;
       }
+
+      setActiveMatch(activeMatchIndex >= 0 ? activeMatchIndex : 0);
     }
 
     findInput.addEventListener('input', () => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
-        runSearch({ forward: true, findNext: false, restoreDelay: 0 });
+        runSearch({ forward: true, findNext: false });
       }, 350);
     });
 
@@ -625,26 +773,58 @@ setInterval(() => {
     nextBtn.onclick = () => runSearch({ forward: true, findNext: true });
     prevBtn.onclick = () => runSearch({ forward: false, findNext: true });
 
-    findInput.addEventListener('keydown', (e) => {
+    function replaceInputSelection(text) {
+      const start = findInput.selectionStart ?? findInput.value.length;
+      const end = findInput.selectionEnd ?? findInput.value.length;
+      findInput.setRangeText(text, start, end, 'end');
+      findInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (!findBarVisible) return;
+
       if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
+        consumeFindEvent(e);
         runSearch({ forward: !e.shiftKey, findNext: true });
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        hideFindBar();
+        restoreFindInputFocus();
+        return;
       }
-    });
+
+      if (e.key === 'Escape') {
+        consumeFindEvent(e);
+        hideFindBar();
+        return;
+      }
+
+      if (document.activeElement === findInput || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === 'Backspace') {
+        consumeFindEvent(e);
+        focusFindInput();
+        if (findInput.selectionStart !== findInput.selectionEnd) {
+          replaceInputSelection('');
+        } else if (findInput.selectionStart > 0) {
+          const cursor = findInput.selectionStart;
+          findInput.setSelectionRange(cursor - 1, cursor);
+          replaceInputSelection('');
+        }
+        return;
+      }
+
+      if (e.key.length === 1) {
+        consumeFindEvent(e);
+        focusFindInput();
+        replaceInputSelection(e.key);
+      }
+    }, true);
 
     findInput.addEventListener('blur', () => {
-      if (!findBarVisible || nativeFindRequestActive) return;
-      restoreFindBarAndFocus();
+      if (!findBarVisible) return;
+      setTimeout(focusFindInput, 80);
     });
 
     closeBtn.onclick = hideFindBar;
 
-    findBar._restoreFindBarAndFocus = restoreFindBarAndFocus;
     findBar._show = () => {
       findBarVisible = true;
       findBar.style.display = 'flex';
@@ -658,14 +838,6 @@ setInterval(() => {
     findBar._show();
   });
 
-  window.addEventListener('find-results', (e) => {
-    if (findResultsCount) {
-        findResultsCount.textContent = `${e.detail.activeMatchOrdinal}/${e.detail.matches}`;
-    }
-    if (e.detail.finalUpdate && findInput && document.activeElement !== findInput) {
-      findBar?._restoreFindBarAndFocus?.();
-    }
-  });
 })();
 
 // =============================================================
